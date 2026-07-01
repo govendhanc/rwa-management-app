@@ -35,6 +35,12 @@ mysql -u rwa_user -p rwa_db < database/schema.sql
 mysql -u rwa_user -p rwa_db < database/seed.sql
 ```
 
+If you already created the database before the association logo/contact update, run:
+
+```bash
+mysql -u rwa_user -p rwa_db < database/migrations/2026-07-01_association_contact_logo_mysql.sql
+```
+
 Create backend environment file:
 
 ```bash

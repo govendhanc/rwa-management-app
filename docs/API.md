@@ -62,13 +62,66 @@ Returns top card totals and chart datasets:
 
 ### GET `/owners?search=A-001`
 
-Search by plot number, owner name, or mobile number.
+Search by plot number, owner name, or mobile number. Returns one row per plot, including the linked owner details and `owner_plot_count`.
 
 ### POST `/owners`
 
 Role: `Admin`
 
-Creates a plot and linked owner.
+Creates one owner and one or more linked plots. Plot numbers are validated for duplicates inside the request and against existing records.
+
+Request:
+
+```json
+{
+  "owner_name": "Ravi Kumar",
+  "mobile_number": "9840011111",
+  "email": "ravi@example.com",
+  "occupancy_status": "Owner Occupied",
+  "plots": [
+    {
+      "plot_number": "A-001",
+      "block": "A",
+      "street": "1st Street",
+      "plot_size": "1200 sqft",
+      "water_connection": true,
+      "eb_connection": true
+    },
+    {
+      "plot_number": "A-003",
+      "block": "A",
+      "street": "1st Street",
+      "plot_size": "1200 sqft",
+      "water_connection": true,
+      "eb_connection": true
+    }
+  ]
+}
+```
+
+### PUT `/owners/:ownerId`
+
+Role: `Admin`
+
+Updates owner master details. If the owner has multiple plots, the owner detail change applies to all linked plots.
+
+### PUT `/owners/plots/:plotId`
+
+Role: `Admin`
+
+Updates one plot linked to an owner. Plot number remains unique.
+
+### DELETE `/owners/plots/:plotId`
+
+Role: `Admin`
+
+Removes one plot if it does not have linked maintenance records.
+
+### DELETE `/owners/:ownerId`
+
+Role: `Admin`
+
+Deletes an owner only after all linked plots are removed or transferred.
 
 ## Maintenance
 
@@ -199,3 +252,5 @@ Returns association details and configurable settings.
 Role: `Admin`
 
 Updates association master details.
+
+Association details include `name`, `address`, `registration_number`, `mobile`, `email`, bank details, financial year, maintenance amount, late fee, GST, and `logo_url`.

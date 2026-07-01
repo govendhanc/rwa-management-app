@@ -18,6 +18,10 @@ Use the dashboard to view collection status, outstanding amounts, expenses, avai
 
 Use Plot Owners to search by plot number, owner name, or mobile number. Owner records include tenant details, occupancy status, street, block, plot size, water connection, EB connection, and remarks.
 
+One owner can be linked to multiple plots. While adding an owner, enter multiple plot numbers separated by commas, such as `A-001, A-003`. The system validates that plot numbers are unique and blocks duplicate plot numbers.
+
+Use Edit to update owner and plot details. If an owner has multiple plots, owner details such as name, mobile, email, address, occupancy, tenant, and remarks are shared across those plots. Use Delete on a plot row to remove only that plot.
+
 ## Monthly Maintenance
 
 1. Choose month and year.
@@ -48,6 +52,8 @@ Choose a report and export it to Excel or PDF:
 ## Receipts
 
 Receipts include association name, receipt number, date, plot number, owner name, payment details, amount, payment mode, treasurer signature, and QR payload. A4 and thermal layouts can be implemented as separate print templates.
+
+The receipt header uses the association logo, registration number, address, mobile number, and email configured in Association Settings.
 
 ## Notifications
 

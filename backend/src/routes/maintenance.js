@@ -95,7 +95,7 @@ router.post('/generate-month', authorize('Admin', 'Treasurer'), audit('Generate 
        $3 + COALESCE((SELECT balance FROM maintenance pm WHERE pm.plot_id = p.id ORDER BY year DESC, month DESC LIMIT 1), 0),
        $3 + COALESCE((SELECT balance FROM maintenance pm WHERE pm.plot_id = p.id ORDER BY year DESC, month DESC LIMIT 1), 0),
        'Unpaid'
-     FROM plots p JOIN owners o ON o.plot_id = p.id`,
+     FROM plots p JOIN owners o ON o.id = p.owner_id`,
     [month, year, amount]
   );
   res.json({ generated: result.rowCount });

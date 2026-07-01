@@ -3,7 +3,7 @@
 ```mermaid
 erDiagram
   roles ||--o{ users : assigns
-  plots ||--|| owners : has
+  owners ||--o{ plots : owns
   plots ||--o{ maintenance : billed
   owners ||--o{ maintenance : pays
   maintenance ||--|| receipts : generates
@@ -39,6 +39,7 @@ erDiagram
 
   plots {
     char36 id PK
+    char36 owner_id FK
     varchar plot_number UK
     varchar block
     varchar street
@@ -49,7 +50,6 @@ erDiagram
 
   owners {
     char36 id PK
-    char36 plot_id FK
     varchar owner_name
     varchar mobile_number
     varchar email

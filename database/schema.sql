@@ -23,6 +23,8 @@ CREATE TABLE association (
   name VARCHAR(180) NOT NULL,
   address TEXT NOT NULL,
   registration_number VARCHAR(100),
+  mobile VARCHAR(20),
+  email VARCHAR(160),
   bank_name VARCHAR(140),
   bank_account_number VARCHAR(80),
   bank_ifsc VARCHAR(30),
@@ -36,22 +38,8 @@ CREATE TABLE association (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
-CREATE TABLE plots (
-  id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
-  plot_number VARCHAR(40) UNIQUE NOT NULL,
-  block VARCHAR(40),
-  street VARCHAR(120),
-  plot_size VARCHAR(60),
-  water_connection BOOLEAN NOT NULL DEFAULT FALSE,
-  eb_connection BOOLEAN NOT NULL DEFAULT FALSE,
-  document_url TEXT,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
-
 CREATE TABLE owners (
   id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
-  plot_id CHAR(36) UNIQUE NOT NULL,
   owner_name VARCHAR(140) NOT NULL,
   father_or_husband_name VARCHAR(140),
   mobile_number VARCHAR(20) NOT NULL,
@@ -62,8 +50,22 @@ CREATE TABLE owners (
   tenant_mobile VARCHAR(20),
   remarks TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE plots (
+  id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+  owner_id CHAR(36) NOT NULL,
+  plot_number VARCHAR(40) UNIQUE NOT NULL,
+  block VARCHAR(40),
+  street VARCHAR(120),
+  plot_size VARCHAR(60),
+  water_connection BOOLEAN NOT NULL DEFAULT FALSE,
+  eb_connection BOOLEAN NOT NULL DEFAULT FALSE,
+  document_url TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_owners_plot FOREIGN KEY (plot_id) REFERENCES plots(id) ON DELETE CASCADE
+  CONSTRAINT fk_plots_owner FOREIGN KEY (owner_id) REFERENCES owners(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
 CREATE TABLE maintenance (
@@ -156,6 +158,7 @@ CREATE TABLE audit_logs (
 
 CREATE INDEX idx_users_role ON users(role_id);
 CREATE INDEX idx_plots_plot_number ON plots(plot_number);
+CREATE INDEX idx_plots_owner ON plots(owner_id);
 CREATE INDEX idx_owners_name ON owners(owner_name);
 CREATE INDEX idx_owners_mobile ON owners(mobile_number);
 CREATE INDEX idx_maintenance_period ON maintenance(year, month);
