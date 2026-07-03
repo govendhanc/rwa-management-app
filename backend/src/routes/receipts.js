@@ -23,6 +23,7 @@ router.get('/:receiptNumber/pdf', async (req, res) => {
     receipt,
     payment: paymentResult.rows[0]
   });
+  await query('UPDATE receipts SET printed_at=NOW() WHERE id=$1', [receipt.id]);
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `inline; filename="${receipt.receipt_number}.pdf"`);
   res.send(buffer);

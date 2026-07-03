@@ -1,5 +1,6 @@
 INSERT IGNORE INTO roles (name, description) VALUES
   ('Admin', 'Full access to all modules'),
+  ('Manager', 'Can manage maintenance, expenses, income, and reports'),
   ('Treasurer', 'Can manage payments, expenses, income, and reports'),
   ('Read Only', 'Can view dashboards and reports');
 

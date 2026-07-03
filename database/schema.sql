@@ -88,6 +88,9 @@ CREATE TABLE maintenance (
   status ENUM('Paid', 'Partially Paid', 'Unpaid') NOT NULL DEFAULT 'Unpaid',
   remarks TEXT,
   created_by CHAR(36),
+  updated_by CHAR(36),
+  deleted_by CHAR(36),
+  deleted_at TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_maintenance_plot_period (plot_id, month, year),
@@ -107,7 +110,11 @@ CREATE TABLE expenses (
   bill_url TEXT,
   description TEXT,
   created_by CHAR(36),
+  updated_by CHAR(36),
+  deleted_by CHAR(36),
+  deleted_at TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_expenses_user FOREIGN KEY (created_by) REFERENCES users(id)
 ) ENGINE=InnoDB;
 
@@ -118,7 +125,11 @@ CREATE TABLE income (
   amount DECIMAL(12,2) NOT NULL CHECK (amount >= 0),
   remarks TEXT,
   created_by CHAR(36),
+  updated_by CHAR(36),
+  deleted_by CHAR(36),
+  deleted_at TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_income_user FOREIGN KEY (created_by) REFERENCES users(id)
 ) ENGINE=InnoDB;
 
@@ -164,7 +175,10 @@ CREATE INDEX idx_owners_mobile ON owners(mobile_number);
 CREATE INDEX idx_maintenance_period ON maintenance(year, month);
 CREATE INDEX idx_maintenance_status ON maintenance(status);
 CREATE INDEX idx_maintenance_plot ON maintenance(plot_id);
+CREATE INDEX idx_maintenance_deleted_at ON maintenance(deleted_at);
 CREATE INDEX idx_expenses_date_category ON expenses(expense_date, category);
+CREATE INDEX idx_expenses_deleted_at ON expenses(deleted_at);
 CREATE INDEX idx_income_date_source ON income(income_date, source);
+CREATE INDEX idx_income_deleted_at ON income(deleted_at);
 CREATE INDEX idx_receipts_number ON receipts(receipt_number);
 CREATE INDEX idx_audit_logs_user_date ON audit_logs(user_id, created_at);

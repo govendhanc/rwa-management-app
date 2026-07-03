@@ -8,21 +8,21 @@ router.get('/', async (_req, res) => {
     query(`SELECT
       (SELECT COUNT(*) FROM plots) AS total_plots,
       (SELECT COUNT(*) FROM owners) AS total_owners,
-      COALESCE((SELECT SUM(paid_amount) FROM maintenance WHERE month = MONTH(CURRENT_DATE) AND year = YEAR(CURRENT_DATE)), 0) AS paid_this_month,
-      COALESCE((SELECT SUM(balance) FROM maintenance WHERE month = MONTH(CURRENT_DATE) AND year = YEAR(CURRENT_DATE)), 0) AS pending_this_month,
-      COALESCE((SELECT SUM(paid_amount) FROM maintenance), 0) + COALESCE((SELECT SUM(amount) FROM income), 0) AS total_collection,
-      COALESCE((SELECT SUM(amount) FROM expenses), 0) AS total_expenses,
-      COALESCE((SELECT SUM(balance) FROM maintenance), 0) AS total_outstanding`),
+      COALESCE((SELECT SUM(paid_amount) FROM maintenance WHERE deleted_at IS NULL AND month = MONTH(CURRENT_DATE) AND year = YEAR(CURRENT_DATE)), 0) AS paid_this_month,
+      COALESCE((SELECT SUM(balance) FROM maintenance WHERE deleted_at IS NULL AND month = MONTH(CURRENT_DATE) AND year = YEAR(CURRENT_DATE)), 0) AS pending_this_month,
+      COALESCE((SELECT SUM(paid_amount) FROM maintenance WHERE deleted_at IS NULL), 0) + COALESCE((SELECT SUM(amount) FROM income WHERE deleted_at IS NULL), 0) AS total_collection,
+      COALESCE((SELECT SUM(amount) FROM expenses WHERE deleted_at IS NULL), 0) AS total_expenses,
+      COALESCE((SELECT SUM(balance) FROM maintenance WHERE deleted_at IS NULL), 0) AS total_outstanding`),
     query(`SELECT year, month, SUM(paid_amount) AS collection
-      FROM maintenance GROUP BY year, month ORDER BY year, month LIMIT 12`),
-    query(`SELECT category, SUM(amount) AS amount FROM expenses GROUP BY category ORDER BY amount DESC`),
-    query(`SELECT status, COUNT(*) AS count FROM maintenance GROUP BY status`),
+      FROM maintenance WHERE deleted_at IS NULL GROUP BY year, month ORDER BY year, month LIMIT 12`),
+    query(`SELECT category, SUM(amount) AS amount FROM expenses WHERE deleted_at IS NULL GROUP BY category ORDER BY amount DESC`),
+    query(`SELECT status, COUNT(*) AS count FROM maintenance WHERE deleted_at IS NULL GROUP BY status`),
     query(`SELECT label, SUM(amount) AS amount FROM (
-      SELECT 'Income' AS label, amount FROM income
+      SELECT 'Income' AS label, amount FROM income WHERE deleted_at IS NULL
       UNION ALL
-      SELECT 'Collection' AS label, paid_amount AS amount FROM maintenance
+      SELECT 'Collection' AS label, paid_amount AS amount FROM maintenance WHERE deleted_at IS NULL
       UNION ALL
-      SELECT 'Expense' AS label, amount * -1 AS amount FROM expenses
+      SELECT 'Expense' AS label, amount * -1 AS amount FROM expenses WHERE deleted_at IS NULL
     ) t GROUP BY label`)
   ]);
 

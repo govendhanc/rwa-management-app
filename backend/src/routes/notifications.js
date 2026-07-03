@@ -9,7 +9,7 @@ function buildReminder(row) {
   return `Dear Owner,\n\nYour maintenance fee for ${row.month_name} ${row.year} is pending.\n\nAmount: ₹${row.balance}\n\nPlease pay at the earliest.\n\nRegards,\nAssociation Treasurer`;
 }
 
-router.post('/reminders', authorize('Admin', 'Treasurer'), audit('Send Reminder', 'notifications'), async (req, res) => {
+router.post('/reminders', authorize('Admin', 'Manager', 'Treasurer'), audit('Send Reminder', 'notifications'), async (req, res) => {
   const { month, year, channel = 'WhatsApp' } = req.body;
   const { rows } = await query(
     `SELECT p.plot_number, o.owner_name, o.mobile_number, o.email, m.balance,
@@ -17,7 +17,7 @@ router.post('/reminders', authorize('Admin', 'Treasurer'), audit('Send Reminder'
      FROM maintenance m
      JOIN plots p ON p.id = m.plot_id
      JOIN owners o ON o.id = m.owner_id
-     WHERE m.month = $1 AND m.year = $2 AND m.balance > 0`,
+     WHERE m.deleted_at IS NULL AND m.month = $1 AND m.year = $2 AND m.balance > 0`,
     [month, year]
   );
   const reminders = rows.map((row) => ({
