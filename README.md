@@ -41,6 +41,12 @@ If you already created the database before the association logo/contact update, 
 mysql -u rwa_user -p rwa_db < database/migrations/2026-07-01_association_contact_logo_mysql.sql
 ```
 
+If you already created the database before finance edit/delete audit support, run:
+
+```bash
+mysql -u rwa_user -p rwa_db < database/migrations/2026-07-03_finance_edit_delete_audit_mysql.sql
+```
+
 Create backend environment file:
 
 ```bash

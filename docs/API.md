@@ -135,6 +135,18 @@ Role: `Admin`, `Treasurer`
 
 Creates or updates monthly maintenance payment. The API calculates total, balance, and status.
 
+### PUT `/maintenance/:id`
+
+Role: `Admin`, `Treasurer`
+
+Updates a maintenance payment, recalculates total, balance, and status, and creates or updates the linked receipt.
+
+### DELETE `/maintenance/:id`
+
+Role: `Admin`, `Treasurer`
+
+Soft deletes a maintenance payment and records the action in audit logs.
+
 ### POST `/maintenance/generate-month`
 
 Role: `Admin`, `Treasurer`
@@ -160,6 +172,18 @@ Returns expenses.
 
 Role: `Admin`, `Treasurer`
 
+### PUT `/finance/expenses/:id`
+
+Role: `Admin`, `Treasurer`
+
+Updates an expense entry and records the action in audit logs.
+
+### DELETE `/finance/expenses/:id`
+
+Role: `Admin`, `Treasurer`
+
+Soft deletes an expense entry and records the action in audit logs.
+
 ### GET `/finance/income`
 
 Returns income rows.
@@ -167,6 +191,18 @@ Returns income rows.
 ### POST `/finance/income`
 
 Role: `Admin`, `Treasurer`
+
+### PUT `/finance/income/:id`
+
+Role: `Admin`, `Treasurer`
+
+Updates an income entry and records the action in audit logs.
+
+### DELETE `/finance/income/:id`
+
+Role: `Admin`, `Treasurer`
+
+Soft deletes an income entry and records the action in audit logs.
 
 ## Reports
 

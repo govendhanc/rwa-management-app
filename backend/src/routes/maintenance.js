@@ -159,8 +159,9 @@ router.put('/:id', authorize(...FINANCE_ROLES), async (req, res) => {
 
   const p = paymentPayload({ ...original, ...req.body });
   validatePayment(p);
-  if (p.receipt_number && p.receipt_number !== original.receipt_number) {
-    const duplicate = await query('SELECT id FROM maintenance WHERE receipt_number=$1 AND id<>$2', [p.receipt_number, req.params.id]);
+  const receiptNumber = p.receipt_number || original.receipt_number || await nextReceiptNumber(p.year);
+  if (receiptNumber && receiptNumber !== original.receipt_number) {
+    const duplicate = await query('SELECT id FROM maintenance WHERE receipt_number=$1 AND id<>$2', [receiptNumber, req.params.id]);
     if (duplicate.rows.length) return res.status(409).json({ message: 'Receipt number already exists' });
   }
 
@@ -172,12 +173,14 @@ router.put('/:id', authorize(...FINANCE_ROLES), async (req, res) => {
      WHERE id=$19`,
     [p.plot_id, p.owner_id, p.month, p.year, p.monthlyAmount, p.previousDue, p.lateFee, p.discount,
       p.totalAmount, p.paidAmount, p.balance, p.paymentDate, p.paymentMode, p.transactionNumber,
-      p.receipt_number || original.receipt_number, p.status, p.remarks, req.user.id, req.params.id]
+      receiptNumber, p.status, p.remarks, req.user.id, req.params.id]
   );
   await query(
-    `UPDATE receipts SET receipt_number=$1, receipt_date=COALESCE($2, receipt_date), qr_payload=$3
-     WHERE maintenance_id=$4`,
-    [p.receipt_number || original.receipt_number, p.paymentDate, `Receipt ${p.receipt_number || original.receipt_number}`, req.params.id]
+    `INSERT INTO receipts (maintenance_id, receipt_number, receipt_date, qr_payload)
+     VALUES ($1, $2, COALESCE($3, CURRENT_DATE), $4)
+     ON DUPLICATE KEY UPDATE receipt_number=VALUES(receipt_number),
+       receipt_date=VALUES(receipt_date), qr_payload=VALUES(qr_payload)`,
+    [req.params.id, receiptNumber, p.paymentDate, `Receipt ${receiptNumber}`]
   );
   await writeAudit(req, 'Edit Maintenance', original, req.body);
   const { rows } = await query('SELECT * FROM maintenance WHERE id=$1', [req.params.id]);

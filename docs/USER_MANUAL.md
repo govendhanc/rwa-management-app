@@ -26,17 +26,19 @@ Use Edit to update owner and plot details. If an owner has multiple plots, owner
 
 1. Choose month and year.
 2. Select Generate Month to create maintenance rows for all plots.
-3. Enter or update paid amount through the API or future form expansion.
-4. Status becomes Paid, Partially Paid, or Unpaid based on balance.
-5. Use receipt actions for print, WhatsApp, and email workflows.
+3. Use Add Payment to enter a new collection.
+4. Use Edit to update payment amount, date, mode, receipt number, and remarks.
+5. Use Delete to remove an incorrect entry. Deleted entries are kept in audit history.
+6. Use Print to open the printable PDF receipt.
+7. Status becomes Paid, Partially Paid, or Unpaid based on balance.
 
 ## Expenses
 
-Add each expense with date, category, vendor, amount, payment mode, invoice number, and description. Upload storage can be connected to local disk or object storage.
+Add each expense with date, category, vendor, amount, payment mode, invoice number, and description. Use Edit to correct an expense and Delete to remove an incorrect entry. Deleted entries are kept in audit history. Upload storage can be connected to local disk or object storage.
 
 ## Income
 
-Record corpus fund, donation, interest, penalty, membership fee, and other income.
+Record corpus fund, donation, interest, penalty, membership fee, and other income. Use Edit to correct an income entry and Delete to remove an incorrect entry. Deleted entries are kept in audit history.
 
 ## Reports
 
