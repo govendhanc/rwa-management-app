@@ -1,0 +1,21 @@
+# Environment & secrets
+.env
+
+# Runtime data (keep folder structure via index.html/.htaccess)
+storage/logs/*
+storage/cache/*
+storage/receipts/*
+storage/imports/*
+storage/backups/*
+storage/uploads/expenses/*
+public/uploads/branding/*
+!storage/**/index.html
+!storage/**/.htaccess
+!storage/imports/errors/
+!public/uploads/branding/index.html
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,26 @@
+# ROWA Portal - Apache rules for the public document root
+Options -Indexes
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # When the app lives in a sub-folder/alias (e.g. http://localhost/rowa/),
+    # set RewriteBase to that path. For a domain root use: RewriteBase /
+    RewriteBase /rowa/
+
+    # Front controller: everything that is not a real file goes to index.php
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.php/$1 [L,QSA]
+</IfModule>
+
+# Never serve dotfiles or backup/source files
+<FilesMatch "(^\.|\.(env|ini|log|sql|bak|sh|md)$)">
+    Require all denied
+</FilesMatch>
+
+# Uploaded branding files are images only - never execute scripts there
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+</IfModule>

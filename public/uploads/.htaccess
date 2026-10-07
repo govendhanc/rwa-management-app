@@ -1,0 +1,10 @@
+# Uploaded files: serve images only, never execute code
+Options -Indexes -ExecCGI
+RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .phar
+RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8 .phar
+<FilesMatch "\.(?i:php\d?|phtml|phar|pl|py|cgi|sh)$">
+    Require all denied
+</FilesMatch>
+<FilesMatch "\.(?i:png|jpe?g)$">
+    Require all granted
+</FilesMatch>

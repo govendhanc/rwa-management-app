@@ -1,0 +1,6 @@
+# Shared-hosting fallback: if the document root cannot be pointed to /public,
+# redirect everything into /public and deny direct access to everything else.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
