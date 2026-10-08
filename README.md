@@ -43,6 +43,7 @@ mysql -u root -p --default-character-set=utf8mb4 rowa_portal < database/03_demo_
 # optional integrity check (every issue_count must be 0):
 mysql -u root -p -t rowa_portal < database/04_verify.sql
 ```
+**Upgrading a database installed before the owner deactivate/reactivate change:** take a backup, then run `database/05_owner_lifecycle.sql` once. It only adds columns and a permission; no data is changed. New installations don't need it.
 On a live server, create a dedicated MySQL user with privileges on `rowa_portal` only. Don't use `root`.
 
 ### 3.2 Environment file
@@ -136,6 +137,8 @@ Do these in order after the first login:
 4. **Maintenance → Pending Reminders**: send WhatsApp reminders to owners with unpaid bills.
 5. **Expenses / Other Income**: record spending (attach the bill) and any other income.
 6. **Reports**: Outstanding, Monthly Collection, Owner Statement (PDF and Excel) and Income & Expense.
+
+**When an owner sells or leaves:** open the owner and click **Deactivate** (Admin and Super Admin only). The confirmation shows the plots and any outstanding balance. The owner moves to **Owners → Inactive Owners** and is not billed from the next generation onwards. Every bill, payment, receipt and statement is kept, and outstanding dues can still be collected. **Reactivate** brings them back. To move the plot to the new owner, use **Houses / Plots → Edit → Owner**. **Remove** appears only for an owner entered by mistake, with no bills or payments.
 
 A wrong payment is **cancelled**, never deleted. Cancelling keeps the receipt number (marked *Cancelled*) and puts the bills back to unpaid.
 

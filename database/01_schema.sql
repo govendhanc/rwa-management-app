@@ -256,9 +256,13 @@ CREATE TABLE owners (
     joining_date            DATE           NULL,
     maintenance_start_date  DATE           NULL,
     status                  ENUM('Active','Inactive') NOT NULL DEFAULT 'Active',
+    deactivated_at          DATETIME       NULL,
+    deactivated_by          INT UNSIGNED   NULL,
+    deactivation_reason     VARCHAR(255)   NULL,
     remarks                 VARCHAR(500)   NULL,
     is_deleted              TINYINT(1)     NOT NULL DEFAULT 0,
     deleted_at              DATETIME       NULL,
+    deleted_by              INT UNSIGNED   NULL,
     created_by              INT UNSIGNED   NULL,
     updated_by              INT UNSIGNED   NULL,
     created_at              DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -269,7 +273,9 @@ CREATE TABLE owners (
     KEY ix_owners_mobile (mobile),
     KEY ix_owners_status (status, is_deleted),
     CONSTRAINT fk_owners_created_by FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL,
-    CONSTRAINT fk_owners_updated_by FOREIGN KEY (updated_by) REFERENCES users (id) ON DELETE SET NULL
+    CONSTRAINT fk_owners_updated_by FOREIGN KEY (updated_by) REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT fk_owners_deactivated_by FOREIGN KEY (deactivated_by) REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT fk_owners_deleted_by FOREIGN KEY (deleted_by) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE houses (

@@ -2,8 +2,12 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Owner management: list, view (plots, tenants, maintenance, payments), create with any
- * number of plots, assign more plots, edit, soft delete.
+ * Owner management: active and inactive lists, view (plots, tenants, maintenance, payments),
+ * create with any number of plots, assign more plots, edit, deactivate / reactivate, and
+ * remove (soft delete) an owner entered by mistake.
+ *
+ * Owners are never hard-deleted. An owner who sells or leaves is deactivated: all bills,
+ * payments, receipts and audit history stay, and they are not billed while inactive.
  *
  * Monthly maintenance is not stored per owner: each plot is billed at the rate for its
  * category (Vacant Plot / Constructed) in force for the billing month (see Rates).
@@ -14,10 +18,13 @@ class Owners extends Auth_Controller
 
     protected $permission_map = array(
         'index'       => 'owners.view',
+        'inactive'    => 'owners.view',
         'view'        => 'owners.view',
         'create'      => 'owners.create',
         'edit'        => 'owners.edit',
         'assign_plot' => 'owners.edit',
+        'deactivate'  => 'owners.deactivate',
+        'reactivate'  => 'owners.deactivate',
         'delete'      => 'owners.delete',
     );
 
@@ -30,20 +37,12 @@ class Owners extends Auth_Controller
 
     public function index(): void
     {
-        $rates = $this->rate_model->rates_for_month();
-        $owners = $this->owner_model->list_all();
-        foreach ($owners as &$o)
-        {
-            $o['monthly_maintenance'] = $this->monthly_amount((int) $o['constructed_plots'], (int) $o['vacant_plots'], $rates);
-        }
-        unset($o);
+        $this->owner_list('Active');
+    }
 
-        $this->render('owners/index', array(
-            'page_title'  => 'Owners',
-            'breadcrumbs' => array(array('label' => 'Owners')),
-            'owners'      => $owners,
-            'scripts'     => array('js/modules/owners.js'),
-        ));
+    public function inactive(): void
+    {
+        $this->owner_list('Inactive');
     }
 
     public function view(int $id = 0): void
@@ -68,19 +67,28 @@ class Owners extends Auth_Controller
             }
         }
         unset($h);
+        $owner['plots'] = implode(', ', array_column($houses, 'plot_no'));
+        $owner['house_nos'] = implode(', ', array_filter(array_column($houses, 'house_no')));
+        $owner['occupancy'] = implode(', ', array_unique(array_column($houses, 'occupancy_status')));
+
+        $payments = can('payments.view') ? $this->owner_model->payment_history($id) : array();
 
         $this->render('owners/view', array(
-            'page_title'   => $owner['owner_name'],
-            'breadcrumbs'  => array(array('label' => 'Owners', 'url' => 'owners'), array('label' => $owner['owner_code'])),
-            'owner'        => $owner,
-            'houses'       => $houses,
-            'monthly'      => $this->monthly_amount($constructed, $vacant, $rates),
-            'free_houses'  => can('owners.edit') && $owner['status'] === 'Active' ? $this->house_model->unassigned_options() : array(),
-            'maintenance'  => can('maintenance.view') ? $this->owner_model->maintenance_history($id) : array(),
-            'payments'     => can('payments.view') ? $this->owner_model->payment_history($id) : array(),
-            'tenants'      => can('tenants.view') ? $this->owner_tenants($id) : array(),
-            'can_delete'   => can('owners.delete') && ! $this->owner_model->has_financial_history($id),
-            'scripts'      => array('js/modules/owners.js'),
+            'page_title'      => $owner['owner_name'],
+            'breadcrumbs'     => array(
+                array('label' => 'Owners', 'url' => $owner['status'] === 'Active' ? 'owners' : 'owners/inactive'),
+                array('label' => $owner['owner_code']),
+            ),
+            'owner'           => $owner,
+            'houses'          => $houses,
+            'monthly'         => $this->monthly_amount($constructed, $vacant, $rates),
+            'free_houses'     => can('owners.edit') && $owner['status'] === 'Active' ? $this->house_model->unassigned_options() : array(),
+            'maintenance'     => can('maintenance.view') ? $this->owner_model->maintenance_history($id) : array(),
+            'payments'        => $payments,
+            'recent_payments' => array_slice($payments, 0, 5),
+            'tenants'         => can('tenants.view') ? $this->owner_tenants($id) : array(),
+            'can_delete'      => can('owners.delete') && ! $this->owner_model->has_financial_history($id),
+            'scripts'         => array('js/modules/owners.js'),
         ));
     }
 
@@ -97,11 +105,16 @@ class Owners extends Auth_Controller
             }
 
             $valid = $this->form_validation->run();
-            $duplicate_error = $valid ? $this->duplicate_plot_error($plot_rows) : NULL;
-
-            if ($valid && $duplicate_error === NULL)
+            $input = $valid ? $this->collect_owner_input(NULL) : array();
+            $error = $valid ? $this->duplicate_owner_error($input, 0) : NULL;
+            if ($valid && $error === NULL)
             {
-                $result = $this->owner_service->create_owner($this->collect_owner_input(), $this->collect_plot_rows($plot_rows));
+                $error = $this->duplicate_plot_error($plot_rows);
+            }
+
+            if ($valid && $error === NULL)
+            {
+                $result = $this->owner_service->create_owner($input, $this->collect_plot_rows($plot_rows));
                 if ($result['success'])
                 {
                     $this->session->set_flashdata('success', $result['message']);
@@ -109,9 +122,9 @@ class Owners extends Auth_Controller
                 }
                 $this->data['form_error'] = $result['message'];
             }
-            elseif ($duplicate_error !== NULL)
+            elseif ($error !== NULL)
             {
-                $this->data['form_error'] = $duplicate_error;
+                $this->data['form_error'] = $error;
             }
         }
 
@@ -142,8 +155,8 @@ class Owners extends Auth_Controller
 
     public function edit(int $id = 0): void
     {
-        $owner = $this->owner_model->find($id);
-        if ($owner === NULL || (int) $owner['is_deleted'] === 1)
+        $owner = $this->owner_model->find_active_record($id);
+        if ($owner === NULL)
         {
             show_404();
         }
@@ -153,25 +166,35 @@ class Owners extends Auth_Controller
             $this->set_owner_rules();
             if ($this->form_validation->run())
             {
-                $result = $this->owner_service->update_owner($owner, $this->collect_owner_input());
-                if ($result['success'])
+                $input = $this->collect_owner_input($owner);
+                $error = $this->duplicate_owner_error($input, $id);
+                if ($error === NULL)
                 {
-                    $this->session->set_flashdata('success', $result['message']);
-                    redirect('owners/view/'.$id);
+                    $result = $this->owner_service->update_owner($owner, $input);
+                    if ($result['success'])
+                    {
+                        $this->session->set_flashdata('success', $result['message']);
+                        redirect('owners/view/'.$id);
+                    }
+                    $error = $result['message'];
                 }
-                $this->data['form_error'] = $result['message'];
+                $this->data['form_error'] = $error;
             }
         }
 
         $this->render('owners/form', array(
             'page_title'  => 'Edit Owner',
-            'breadcrumbs' => array(array('label' => 'Owners', 'url' => 'owners'), array('label' => $owner['owner_code'], 'url' => 'owners/view/'.$id), array('label' => 'Edit')),
+            'breadcrumbs' => array(
+                array('label' => 'Owners', 'url' => $owner['status'] === 'Active' ? 'owners' : 'owners/inactive'),
+                array('label' => $owner['owner_code'], 'url' => 'owners/view/'.$id),
+                array('label' => 'Edit'),
+            ),
             'owner'       => $owner,
             'plot_rows'   => array(),
             'free_houses' => array(),
             'houses'      => $this->house_model->for_owner($id),
             'rates'       => $this->rate_model->rates_for_month(),
-            'scripts'     => array('js/modules/owner-form.js'),
+            'scripts'     => array('js/modules/owner-form.js', 'js/modules/owners.js'),
         ));
     }
 
@@ -199,7 +222,44 @@ class Owners extends Auth_Controller
     }
 
     /**
-     * AJAX POST: soft delete (only when there is no financial history).
+     * AJAX POST: deactivate (owner sold / left). Keeps every record; stops future billing.
+     */
+    public function deactivate(int $id = 0): void
+    {
+        $this->require_ajax();
+        $this->require_post();
+        $this->form_validation->set_rules('reason', 'Reason', 'trim|max_length[255]');
+        if ( ! $this->form_validation->run())
+        {
+            $this->json_error(strip_tags(validation_errors(' ', ' ')));
+        }
+        $result = $this->owner_service->deactivate_owner($id, (string) $this->input->post('reason', TRUE));
+        if ( ! $result['success'])
+        {
+            $this->json_error($result['message']);
+        }
+        $this->session->set_flashdata('success', $result['message']);
+        $this->json_success($result['message'], array('redirect' => site_url('owners/view/'.$id)));
+    }
+
+    /**
+     * AJAX POST: reactivate an inactive owner.
+     */
+    public function reactivate(int $id = 0): void
+    {
+        $this->require_ajax();
+        $this->require_post();
+        $result = $this->owner_service->reactivate_owner($id);
+        if ( ! $result['success'])
+        {
+            $this->json_error($result['message']);
+        }
+        $this->session->set_flashdata('success', $result['message']);
+        $this->json_success($result['message'], array('redirect' => site_url('owners/view/'.$id)));
+    }
+
+    /**
+     * AJAX POST: remove an owner entered by mistake (soft delete; only without financial history).
      */
     public function delete(int $id = 0): void
     {
@@ -215,6 +275,27 @@ class Owners extends Auth_Controller
     }
 
     /* ------------------------------------------------------------------ */
+
+    private function owner_list(string $status): void
+    {
+        $rates = $this->rate_model->rates_for_month();
+        $owners = $this->owner_model->list_all($status);
+        foreach ($owners as &$o)
+        {
+            $o['monthly_maintenance'] = $this->monthly_amount((int) $o['constructed_plots'], (int) $o['vacant_plots'], $rates);
+        }
+        unset($o);
+
+        $active = $status === 'Active';
+        $this->render('owners/index', array(
+            'page_title'  => $active ? 'Owners' : 'Inactive Owners',
+            'breadcrumbs' => $active ? array(array('label' => 'Owners')) : array(array('label' => 'Owners', 'url' => 'owners'), array('label' => 'Inactive Owners')),
+            'owners'      => $owners,
+            'list_status' => $status,
+            'counts'      => $this->owner_model->status_counts(),
+            'scripts'     => array('js/modules/owners.js'),
+        ));
+    }
 
     /**
      * Monthly total for an owner = constructed plots x Constructed rate + vacant plots x Vacant Plot rate.
@@ -233,6 +314,28 @@ class Owners extends Auth_Controller
             $paise += $vacant * to_paise_signed($rates['Vacant Plot']['amount']);
         }
         return from_paise($paise);
+    }
+
+    /**
+     * The same person entered twice: same name and mobile number as another owner.
+     *
+     * @param array<string, mixed> $input
+     */
+    private function duplicate_owner_error(array $input, int $exclude_id): ?string
+    {
+        $dup = $this->owner_model->find_duplicate((string) $input['owner_name'], (string) $input['mobile'], $exclude_id);
+        if ($dup === NULL)
+        {
+            return NULL;
+        }
+        $message = 'This owner already exists as '.$dup['owner_code'].' - '.$dup['owner_name'].' (same name and mobile number).';
+        if ($exclude_id > 0)
+        {
+            return $message;
+        }
+        return $message.($dup['status'] === 'Active'
+            ? ' To add another plot, open that owner and use "Assign another plot".'
+            : ' That owner is inactive - reactivate them from Owners → Inactive Owners instead of adding them again.');
     }
 
     /**
@@ -382,14 +485,18 @@ class Owners extends Auth_Controller
         $v->set_rules('owner_type', 'Owner Type', 'required|in_config_list[owner_types]');
         $v->set_rules('joining_date', 'Joining Date', 'trim|valid_date_ymd');
         $v->set_rules('maintenance_start_date', 'Maintenance Start Date', 'trim|valid_date_ymd');
-        $v->set_rules('status', 'Status', 'required|in_list[Active,Inactive]');
+        if (can('owners.deactivate'))
+        {
+            $v->set_rules('status', 'Status', 'required|in_list[Active,Inactive]');
+        }
         $v->set_rules('remarks', 'Remarks', 'trim|max_length[500]');
     }
 
     /**
+     * @param array<string, mixed>|null $current Existing owner when editing
      * @return array<string, mixed>
      */
-    private function collect_owner_input(): array
+    private function collect_owner_input(?array $current): array
     {
         $post = function (string $key): string {
             return trim((string) $this->input->post($key, TRUE));
@@ -397,6 +504,9 @@ class Owners extends Auth_Controller
         $mobile = normalize_mobile($post('mobile'));
         $whatsapp = normalize_mobile($post('whatsapp_no'));
         $email = strtolower($post('email'));
+
+        // Only users allowed to deactivate/reactivate may change the status
+        $status = can('owners.deactivate') ? $post('status') : ($current['status'] ?? 'Active');
 
         return array(
             'owner_name'             => $post('owner_name'),
@@ -409,7 +519,7 @@ class Owners extends Auth_Controller
             'owner_type'             => $post('owner_type'),
             'joining_date'           => $post('joining_date') !== '' ? $post('joining_date') : NULL,
             'maintenance_start_date' => $post('maintenance_start_date') !== '' ? $post('maintenance_start_date') : NULL,
-            'status'                 => $post('status'),
+            'status'                 => $status,
             'remarks'                => $post('remarks') !== '' ? $post('remarks') : NULL,
         );
     }

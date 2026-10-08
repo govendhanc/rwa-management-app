@@ -38,6 +38,10 @@ class Owner_service
         {
             $owner['created_by'] = user_id();
             $owner['updated_by'] = user_id();
+            if ($owner['status'] === 'Inactive')
+            {
+                $owner += $this->deactivation_fields('Added as inactive');
+            }
             $owner_id = $this->CI->owner_model->insert($owner);
             if ($owner_id === 0)
             {
@@ -157,24 +161,217 @@ class Owner_service
     }
 
     /**
+     * Edit owner details. A status change made here is handled exactly like
+     * Deactivate / Reactivate (who, when, audit). Plots are edited under Houses.
+     *
      * @param array<string, mixed> $old  Current row
      * @param array<string, mixed> $data New values
      * @return array<string, mixed>
      */
     public function update_owner(array $old, array $data): array
     {
-        $data['updated_by'] = user_id();
-        $ok = $this->CI->owner_model->update((int) $old['id'], $data);
-        if ( ! $ok)
+        $db = $this->CI->db;
+        $db->trans_begin();
+        try
         {
-            return array('success' => FALSE, 'message' => 'The owner could not be updated.');
+            $current = $this->CI->owner_model->find_for_update((int) $old['id']);
+            if ($current === NULL || (int) $current['is_deleted'] === 1)
+            {
+                throw new DomainException('Owner not found.');
+            }
+
+            $changed = FALSE;
+            foreach ($data as $key => $value)
+            {
+                if (trim((string) $current[$key]) !== trim((string) $value))
+                {
+                    $changed = TRUE;
+                    break;
+                }
+            }
+            if ( ! $changed)
+            {
+                $db->trans_rollback();
+                return array('success' => TRUE, 'message' => 'No changes were made to '.$current['owner_code'].'.');
+            }
+
+            $action = 'Owner Updated';
+            if ($data['status'] !== $current['status'])
+            {
+                if ($data['status'] === 'Inactive')
+                {
+                    $data += $this->deactivation_fields('Status changed on the Edit Owner form');
+                    $action = 'Owner Deactivated';
+                }
+                else
+                {
+                    $data += $this->reactivation_fields();
+                    $action = 'Owner Reactivated';
+                }
+            }
+
+            $data['updated_by'] = user_id();
+            $this->CI->owner_model->update((int) $current['id'], $data);
+            $this->CI->audit->log($action, 'owners', $current['id'], $current, $data);
+
+            if ($db->trans_status() === FALSE)
+            {
+                throw new RuntimeException('The owner could not be updated.');
+            }
+            $db->trans_commit();
+
+            $message = 'Owner '.$current['owner_code'].' updated.';
+            if ($action === 'Owner Deactivated')
+            {
+                $message .= ' The owner is now inactive and will not be billed; all history is kept.';
+            }
+            elseif ($action === 'Owner Reactivated')
+            {
+                $message .= ' The owner is active again and will be included in future maintenance generation.';
+            }
+            return array('success' => TRUE, 'message' => $message);
         }
-        $this->CI->audit->log('Owner Updated', 'owners', $old['id'], $old, $data);
-        return array('success' => TRUE, 'message' => 'Owner '.$old['owner_code'].' updated.');
+        catch (Throwable $e)
+        {
+            $db->trans_rollback();
+            return $this->failure($e, 'update owner');
+        }
     }
 
     /**
-     * Soft delete: only for owners without maintenance or payment history.
+     * Deactivate (owner sold the property / left the association).
+     * Nothing is deleted: bills, payments, receipts, advance credit, tenants and plots stay
+     * exactly as they are. The owner is simply not billed from the next generation onwards,
+     * and outstanding dues can still be collected.
+     *
+     * @return array<string, mixed>
+     */
+    public function deactivate_owner(int $owner_id, string $reason): array
+    {
+        $db = $this->CI->db;
+        $db->trans_begin();
+        try
+        {
+            $owner = $this->CI->owner_model->find_for_update($owner_id);
+            if ($owner === NULL || (int) $owner['is_deleted'] === 1)
+            {
+                throw new DomainException('Owner not found.');
+            }
+            if ($owner['status'] === 'Inactive')
+            {
+                throw new DomainException('Owner '.$owner['owner_code'].' is already inactive.');
+            }
+
+            $balance = $this->CI->owner_model->find_active_record($owner_id);
+            $data = array('status' => 'Inactive', 'updated_by' => user_id()) + $this->deactivation_fields($reason);
+            $this->CI->owner_model->update($owner_id, $data);
+            $this->CI->audit->log('Owner Deactivated', 'owners', $owner_id,
+                array('status' => $owner['status']),
+                array(
+                    'status'                         => 'Inactive',
+                    'deactivation_reason'            => $data['deactivation_reason'],
+                    'outstanding_at_deactivation'    => $balance['outstanding'],
+                    'advance_credit_at_deactivation' => $balance['advance_credit'],
+                )
+            );
+
+            if ($db->trans_status() === FALSE)
+            {
+                throw new RuntimeException('The owner could not be deactivated.');
+            }
+            $db->trans_commit();
+
+            $message = 'Owner '.$owner['owner_code'].' - '.$owner['owner_name'].' deactivated. No new maintenance will be generated for this owner; all past records are kept.';
+            if (to_paise_signed($balance['outstanding']) > 0)
+            {
+                $message .= ' Outstanding '.money($balance['outstanding']).' is still due and can be collected.';
+            }
+            if (to_paise_signed($balance['advance_credit']) > 0)
+            {
+                $message .= ' Advance credit of '.money($balance['advance_credit']).' is kept.';
+            }
+            return array('success' => TRUE, 'message' => $message);
+        }
+        catch (Throwable $e)
+        {
+            $db->trans_rollback();
+            return $this->failure($e, 'deactivate owner');
+        }
+    }
+
+    /**
+     * Reactivate: eligible for maintenance generation again. History is unchanged.
+     *
+     * @return array<string, mixed>
+     */
+    public function reactivate_owner(int $owner_id): array
+    {
+        $db = $this->CI->db;
+        $db->trans_begin();
+        try
+        {
+            $owner = $this->CI->owner_model->find_for_update($owner_id);
+            if ($owner === NULL || (int) $owner['is_deleted'] === 1)
+            {
+                throw new DomainException('Owner not found.');
+            }
+            if ($owner['status'] === 'Active')
+            {
+                throw new DomainException('Owner '.$owner['owner_code'].' is already active.');
+            }
+
+            $data = array('status' => 'Active', 'updated_by' => user_id()) + $this->reactivation_fields();
+            $this->CI->owner_model->update($owner_id, $data);
+            $this->CI->audit->log('Owner Reactivated', 'owners', $owner_id,
+                array('status' => 'Inactive', 'deactivated_at' => $owner['deactivated_at'], 'deactivation_reason' => $owner['deactivation_reason']),
+                array('status' => 'Active', 'deactivated_at' => NULL, 'deactivation_reason' => NULL)
+            );
+
+            if ($db->trans_status() === FALSE)
+            {
+                throw new RuntimeException('The owner could not be reactivated.');
+            }
+            $db->trans_commit();
+
+            $plots = $this->CI->db->where('owner_id', $owner_id)->where('status', 'Active')->count_all_results('houses');
+            $message = 'Owner '.$owner['owner_code'].' - '.$owner['owner_name'].' is active again and will be included in future maintenance generation.';
+            if ($plots === 0)
+            {
+                $message .= ' Note: no plot is assigned, so nothing will be billed until a plot is assigned.';
+            }
+            return array('success' => TRUE, 'message' => $message);
+        }
+        catch (Throwable $e)
+        {
+            $db->trans_rollback();
+            return $this->failure($e, 'reactivate owner');
+        }
+    }
+
+    /**
+     * @return array{deactivated_at: string, deactivated_by: int|null, deactivation_reason: string}
+     */
+    private function deactivation_fields(string $reason): array
+    {
+        $reason = trim($reason);
+        return array(
+            'deactivated_at'      => date('Y-m-d H:i:s'),
+            'deactivated_by'      => user_id(),
+            'deactivation_reason' => $reason !== '' ? mb_substr($reason, 0, 255) : 'Not specified',
+        );
+    }
+
+    /**
+     * @return array{deactivated_at: null, deactivated_by: null, deactivation_reason: null}
+     */
+    private function reactivation_fields(): array
+    {
+        return array('deactivated_at' => NULL, 'deactivated_by' => NULL, 'deactivation_reason' => NULL);
+    }
+
+    /**
+     * Remove an owner entered by mistake (soft delete: the row is kept with is_deleted = 1).
+     * Only for owners without maintenance or payment history - everyone else is deactivated.
      * Their houses become unassigned and vacant.
      *
      * @return array<string, mixed>
@@ -192,7 +389,7 @@ class Owner_service
             }
             if ($this->CI->owner_model->has_financial_history($owner_id))
             {
-                throw new DomainException('This owner has maintenance or payment history and cannot be deleted. Set the status to Inactive instead.');
+                throw new DomainException('This owner has maintenance or payment history and cannot be removed. Deactivate the owner instead; all records are kept.');
             }
 
             $houses = $this->CI->house_model->for_owner($owner_id);
@@ -204,17 +401,18 @@ class Owner_service
             $this->CI->owner_model->update($owner_id, array(
                 'is_deleted' => 1,
                 'deleted_at' => date('Y-m-d H:i:s'),
+                'deleted_by' => user_id(),
                 'status'     => 'Inactive',
                 'updated_by' => user_id(),
             ));
-            $this->CI->audit->log('Owner Deleted', 'owners', $owner_id, $owner, array('is_deleted' => 1, 'houses_released' => array_column($houses, 'plot_no')));
+            $this->CI->audit->log('Owner Removed', 'owners', $owner_id, $owner, array('is_deleted' => 1, 'houses_released' => array_column($houses, 'plot_no')));
 
             if ($db->trans_status() === FALSE)
             {
                 throw new RuntimeException('Delete failed.');
             }
             $db->trans_commit();
-            return array('success' => TRUE, 'message' => 'Owner '.$owner['owner_code'].' deleted.'.(count($houses) ? ' '.count($houses).' house(s) are now unassigned.' : ''));
+            return array('success' => TRUE, 'message' => 'Owner '.$owner['owner_code'].' removed.'.(count($houses) ? ' '.count($houses).' house(s) are now unassigned.' : ''));
         }
         catch (Throwable $e)
         {

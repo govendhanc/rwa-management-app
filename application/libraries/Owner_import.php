@@ -123,6 +123,17 @@ class Owner_import
             $first = $rows[$indexes[0]]['data'];
             $existing = $this->find_existing_owner($first['owner_name'], $first['mobile']);
 
+            // Never create a second copy of a deactivated owner
+            if ($existing && $existing['status'] !== 'Active')
+            {
+                foreach ($indexes as $i)
+                {
+                    $rows[$i]['status'] = 'Failed';
+                    $rows[$i]['reason'] = 'Owner '.$existing['owner_code'].' is inactive - reactivate the owner first, then import again';
+                }
+                continue;
+            }
+
             if ($dry_run)
             {
                 foreach ($indexes as $i)
@@ -386,7 +397,7 @@ class Owner_import
     private function find_existing_owner(string $name, string $mobile): ?array
     {
         $row = $this->CI->db->query(
-            "SELECT id, owner_code FROM owners WHERE is_deleted = 0 AND status = 'Active' AND mobile = ? AND LOWER(owner_name) = LOWER(?) LIMIT 1",
+            "SELECT id, owner_code, status FROM owners WHERE is_deleted = 0 AND mobile = ? AND LOWER(owner_name) = LOWER(?) ORDER BY status = 'Active' DESC LIMIT 1",
             array(normalize_mobile($mobile), preg_replace('/\s+/', ' ', trim($name)))
         )->row_array();
         return $row ?: NULL;

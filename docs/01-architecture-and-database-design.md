@@ -912,3 +912,28 @@ These decisions were confirmed with the association before Step 6. They replace 
 **Verified**
 - Acceptance workflow: login → add owner with 2 plots → generate maintenance (repeat generation adds nothing) → search → partial payment (double submit and reused reference refused) → receipt number and amounts → A4 and half-page PDFs → second payment → payment history → outstanding → WhatsApp receipt and reminder links → dashboard and all reports → all 13 integrity checks.
 - All step test suites, 774 automated checks in total, plus production mode (generic error pages, System Check for the Super Admin only).
+
+## 10. Owner Lifecycle (Deactivate / Reactivate)
+
+Owners are never hard-deleted. Bills, payments, receipts and audit rows all reference `owners.id`, and the association must keep that history.
+
+| State | How it is reached | Billing | Shown in |
+|---|---|---|---|
+| Active | Add Owner, Reactivate | Billed every month for each active plot | Owners (default list) |
+| Inactive | Deactivate, or Status → Inactive on the Edit form | Not billed; maintenance generation skips the plot with "Owner inactive" | Owners → Inactive Owners, reports (owner status filter), statements |
+| Removed | Remove: only an owner entered by mistake, with no bills or payments | Not billed | Hidden everywhere (`is_deleted = 1`; the row is kept) |
+
+**Schema changes** (new installs: `01_schema.sql`; existing databases: `05_owner_lifecycle.sql`):
+- `owners.deactivated_at`, `owners.deactivated_by` (FK to users) and `owners.deactivation_reason` record who deactivated the owner, when and why. Reactivation clears them; the audit log keeps the history.
+- `owners.deleted_by` (FK to users) records who removed an owner.
+- New permission `owners.deactivate`, held by Super Admin and Admin. Only users with it can change the status, including on the Edit form. Treasurer and Viewer can view the owner, payment history and statement.
+
+**Rules:**
+- Deactivating changes nothing else. Plots stay linked (so history and the Inactive list still show them), tenants stay, outstanding stays collectable, and advance credit is kept.
+- To hand a plot to a buyer, transfer it in Houses: past bills stay with the old owner, future bills go to the new owner.
+- No new plot can be assigned to an inactive owner. The CSV import refuses rows that match an inactive owner rather than creating a duplicate.
+- Reactivation makes the owner eligible from the next generation. Months while the owner was inactive are not billed automatically.
+- **Duplicate owner:** the same name (ignoring case) and the same mobile number as another non-removed owner is refused, on both Add and Edit.
+- **Monthly maintenance** is not a per-owner field. It is the sum of the current rates for the owner's active plots (section 8), shown on the list, profile and form.
+- `04_verify.sql` checks 14 and 15: an inactive owner has a deactivation record (and an active owner has none), and no bill was issued for a month after deactivation.
+

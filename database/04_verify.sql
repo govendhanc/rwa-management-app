@@ -119,6 +119,20 @@ FROM tenants t
 JOIN houses h ON h.id = t.house_id
 WHERE t.status = 'Active' AND h.occupancy_status <> 'Tenant Occupied';
 
+-- 14. Owner lifecycle fields agree with the status (Inactive => deactivation recorded; Active => none)
+SELECT 'CHECK 14: owner status matches deactivation record' AS check_name, COUNT(*) AS issue_count
+FROM owners
+WHERE is_deleted = 0
+  AND ((status = 'Inactive' AND deactivated_at IS NULL)
+    OR (status = 'Active' AND (deactivated_at IS NOT NULL OR deactivation_reason IS NOT NULL)));
+
+-- 15. No bill was issued to an owner for a month that started after the owner was deactivated
+SELECT 'CHECK 15: no bills after deactivation' AS check_name, COUNT(*) AS issue_count
+FROM maintenance m
+JOIN owners o ON o.id = m.owner_id
+WHERE o.status = 'Inactive' AND m.record_status = 'Active'
+  AND m.period_start > o.deactivated_at;
+
 -- -------------------------------------------------------------------------------------
 -- Summary figures (compare with the dashboard)
 -- -------------------------------------------------------------------------------------

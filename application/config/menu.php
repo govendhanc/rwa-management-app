@@ -19,6 +19,7 @@ $config['sidebar_menu'] = array(
     array('section' => 'Residents'),
     array('label' => 'Owners', 'icon' => 'fa-solid fa-users', 'children' => array(
         array('label' => 'Owner List',   'url' => 'owners',         'perm' => 'owners.view'),
+        array('label' => 'Inactive Owners','url' => 'owners/inactive','perm' => 'owners.view'),
         array('label' => 'Add Owner',    'url' => 'owners/create',  'perm' => 'owners.create'),
         array('label' => 'Import Owners','url' => 'imports',        'perm' => 'owners.import'),
     )),

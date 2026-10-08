@@ -157,11 +157,22 @@ $plot_row = function ($index, array $row) use ($free_houses, $cfg, $owner_occupa
                         <?= $f['joining_date']['message'] ?>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label" for="status">Status <span class="required">*</span></label>
-                        <select class="form-select<?= $f['status']['class'] ?>" id="status" name="status" required>
-                            <?= select_options(array('Active', 'Inactive'), $val('status')) ?>
-                        </select>
-                        <?= $f['status']['message'] ?>
+                        <?php if (can('owners.deactivate')): ?>
+                            <label class="form-label" for="status">Status <span class="required">*</span></label>
+                            <select class="form-select<?= $f['status']['class'] ?>" id="status" name="status" required
+                                <?php if ( ! $is_new): ?>
+                                    data-original="<?= e($owner['status']) ?>"
+                                    data-outstanding="<?= e(money($owner['outstanding'])) ?>"
+                                    data-has-due="<?= to_paise_signed($owner['outstanding']) > 0 ? '1' : '0' ?>"
+                                <?php endif; ?>>
+                                <?= select_options(array('Active', 'Inactive'), $val('status')) ?>
+                            </select>
+                            <div class="form-text">Inactive owners are not billed; their history is kept.</div>
+                            <?= $f['status']['message'] ?>
+                        <?php else: ?>
+                            <div class="form-label">Status</div>
+                            <div class="pt-1"><?= status_badge((string) $owner['status']) ?></div>
+                        <?php endif; ?>
                     </div>
                     <div class="col-12">
                         <label class="form-label" for="remarks">Remarks</label>

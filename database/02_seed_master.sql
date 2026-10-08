@@ -31,7 +31,8 @@ INSERT INTO permissions (perm_key, module, description) VALUES
 ('owners.view',           'owners',      'View owners'),
 ('owners.create',         'owners',      'Add owners'),
 ('owners.edit',           'owners',      'Edit owners'),
-('owners.delete',         'owners',      'Delete (soft) owners without financial history'),
+('owners.deactivate',     'owners',      'Deactivate and reactivate owners'),
+('owners.delete',         'owners',      'Remove owners entered by mistake (no financial history; soft delete)'),
 ('owners.import',         'owners',      'Import owners from CSV/Excel'),
 ('houses.view',           'houses',      'View houses/plots'),
 ('houses.create',         'houses',      'Add houses/plots'),
@@ -76,7 +77,7 @@ SELECT 1, id FROM permissions;
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT 2, id FROM permissions WHERE perm_key IN (
     'dashboard.view',
-    'owners.view', 'owners.create', 'owners.edit', 'owners.delete', 'owners.import',
+    'owners.view', 'owners.create', 'owners.edit', 'owners.deactivate', 'owners.delete', 'owners.import',
     'houses.view', 'houses.create', 'houses.edit', 'houses.delete',
     'tenants.view', 'tenants.manage', 'tenants.id_proof',
     'maintenance.view', 'maintenance.generate', 'maintenance.waive', 'maintenance.rates',

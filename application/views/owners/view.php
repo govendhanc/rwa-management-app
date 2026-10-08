@@ -20,18 +20,80 @@ $detail = function (string $label, ?string $value) {
         <?php if (can('owners.edit')): ?>
             <a href="<?= e(site_url('owners/edit/'.$o['id'])) ?>" class="btn btn-outline-primary"><i class="fa-solid fa-pen me-1"></i> Edit</a>
         <?php endif; ?>
+        <?php if (can('reports.view')): ?>
+            <a href="<?= e(site_url('reports/statement?owner_id='.$o['id'])) ?>" class="btn btn-outline-secondary"><i class="fa-solid fa-file-lines me-1"></i> Statement</a>
+        <?php endif; ?>
+        <?php if (can('owners.deactivate')): ?>
+            <?php $this->load->view('owners/_status_button', array('o' => $o, 'compact' => FALSE)); ?>
+        <?php endif; ?>
         <?php if ($can_delete): ?>
-            <button type="button" class="btn btn-outline-danger js-delete-owner" data-url="<?= e(site_url('owners/delete/'.$o['id'])) ?>" data-name="<?= e($o['owner_name']) ?>"><i class="fa-solid fa-trash me-1"></i> Delete</button>
+            <button type="button" class="btn btn-outline-danger js-delete-owner" data-url="<?= e(site_url('owners/delete/'.$o['id'])) ?>" data-name="<?= e($o['owner_name']) ?>" title="Only for an owner entered by mistake (no bills or payments)"><i class="fa-solid fa-trash me-1"></i> Remove</button>
         <?php endif; ?>
     </div>
 </div>
 
+<?php if ($o['status'] === 'Inactive'): ?>
+    <div class="alert alert-secondary d-flex gap-2 align-items-start" role="status">
+        <i class="fa-solid fa-user-slash mt-1"></i>
+        <div>
+            <strong>Inactive owner</strong> since <?= e(fmt_datetime($o['deactivated_at'])) ?><?= $o['deactivated_by_name'] ? ' (by '.e($o['deactivated_by_name']).')' : '' ?>.
+            <?php if ($o['deactivation_reason']): ?>Reason: <?= e($o['deactivation_reason']) ?>.<?php endif; ?>
+            <div class="small">No new maintenance is generated. All bills, payments, receipts and statements are kept<?= to_paise_signed($o['outstanding']) > 0 ? ', and the outstanding '.e(money($o['outstanding'])).' can still be collected' : '' ?>.</div>
+        </div>
+    </div>
+<?php endif; ?>
+
 <div class="row g-3 mb-3">
-    <div class="col-6 col-lg-3"><div class="card stat-card"><span class="stat-icon bg-primary-soft"><i class="fa-solid fa-file-invoice"></i></span><div><div class="stat-label">Total billed</div><div class="stat-value"><?= e(money($o['total_due'])) ?></div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="card stat-card"><span class="stat-icon bg-primary-soft"><i class="fa-solid fa-file-invoice"></i></span><div><div class="stat-label">Total maintenance generated</div><div class="stat-value"><?= e(money($o['total_due'])) ?></div></div></div></div>
     <div class="col-6 col-lg-3"><div class="card stat-card"><span class="stat-icon bg-success-soft"><i class="fa-solid fa-circle-check"></i></span><div><div class="stat-label">Total paid</div><div class="stat-value"><?= e(money($o['total_paid'])) ?></div></div></div></div>
     <div class="col-6 col-lg-3"><div class="card stat-card"><span class="stat-icon bg-danger-soft"><i class="fa-solid fa-hourglass-half"></i></span><div><div class="stat-label">Outstanding</div><div class="stat-value"><?= e(money($o['outstanding'])) ?></div><?php if (to_paise_signed($o['total_waived']) > 0): ?><div class="small text-muted"><?= e(money($o['total_waived'])) ?> waived</div><?php endif; ?></div></div></div>
-    <div class="col-6 col-lg-3"><div class="card stat-card"><span class="stat-icon bg-secondary-soft"><i class="fa-solid fa-forward"></i></span><div><div class="stat-label">Advance credit</div><div class="stat-value"><?= e(money($o['advance_credit'])) ?></div><div class="small text-muted">Last paid: <?= $o['last_payment_date'] ? e(fmt_date($o['last_payment_date'])) : 'never' ?></div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="card stat-card"><span class="stat-icon bg-secondary-soft"><i class="fa-solid fa-forward"></i></span><div><div class="stat-label">Advance amount</div><div class="stat-value"><?= e(money($o['advance_credit'])) ?></div><div class="small text-muted">Last payment: <?= $o['last_payment_date'] ? e(fmt_date($o['last_payment_date'])) : 'never' ?></div></div></div></div>
 </div>
+
+<?php if (can('payments.view') || can('reports.view')): ?>
+<div class="card mb-3">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span>Recent Payments</span>
+        <span class="d-flex gap-2">
+            <?php if (can('payments.view')): ?>
+                <button type="button" class="btn btn-sm btn-outline-secondary js-show-payments"><i class="fa-solid fa-clock-rotate-left me-1"></i>View Full History</button>
+            <?php endif; ?>
+            <?php if (can('reports.view')): ?>
+                <a class="btn btn-sm btn-outline-secondary" href="<?= e(site_url('reports/statement-pdf?owner_id='.$o['id'])) ?>"><i class="fa-solid fa-file-pdf me-1"></i>Download Statement</a>
+            <?php endif; ?>
+        </span>
+    </div>
+    <?php if (can('payments.view')): ?>
+        <?php if (empty($recent_payments)): ?>
+            <div class="card-body text-muted small">No payments recorded yet.</div>
+        <?php else: ?>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0" id="recentPaymentsTable">
+                <thead><tr><th>Date</th><th>Receipt</th><th>Months</th><th class="text-end">Amount</th><th class="ps-4">Mode</th><th>Status</th></tr></thead>
+                <tbody>
+                <?php foreach ($recent_payments as $p): ?>
+                    <tr class="<?= $p['status'] !== 'Active' ? 'text-muted' : '' ?>">
+                        <td class="text-nowrap"><?= e(fmt_date($p['payment_date'])) ?></td>
+                        <td class="text-nowrap">
+                            <?php if ($p['receipt_id'] && can('receipts.view')): ?>
+                                <a href="<?= e(site_url('receipts/view/'.$p['receipt_id'])) ?>"><?= e($p['receipt_no']) ?></a>
+                            <?php else: ?>
+                                <?= e($p['receipt_no']) ?>
+                            <?php endif; ?>
+                        </td>
+                        <td><?= e($p['period_label']) ?></td>
+                        <td class="text-end amount"><?= e(money($p['amount'])) ?></td>
+                        <td class="ps-4"><?= e($p['payment_mode']) ?></td>
+                        <td><?= status_badge($p['status']) ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php endif; ?>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
 
 <div class="card">
     <div class="card-header p-0 border-0">
@@ -52,12 +114,19 @@ $detail = function (string $label, ?string $value) {
     <div class="card-body tab-content">
         <div class="tab-pane fade show active" id="tabDetails" role="tabpanel">
             <div class="row g-3">
+                <?= $detail('Owner ID', $o['owner_code']) ?>
+                <?= $detail('Owner Name', $o['owner_name']) ?>
+                <?= $detail('Co-owner', $o['co_owner_name']) ?>
+                <?= $detail('Plot No', $o['plots']) ?>
+                <?= $detail('House No', $o['house_nos']) ?>
+                <?= $detail('Occupancy Status', $o['occupancy']) ?>
                 <?= $detail('Mobile', $o['mobile']) ?>
                 <?= $detail('WhatsApp', $o['whatsapp_no']) ?>
                 <?= $detail('E-mail', $o['email']) ?>
                 <?= $detail('Owner Type', $o['owner_type']) ?>
                 <?= $detail('Date of Joining', fmt_date($o['joining_date'])) ?>
-                <?= $detail('Monthly Maintenance (all plots)', money($monthly).' at current rates') ?>
+                <?= $detail('Status', $o['status'].($o['status'] === 'Inactive' && $o['deactivated_at'] ? ' since '.fmt_date($o['deactivated_at']) : '')) ?>
+                <?= $detail('Monthly Maintenance (all plots)', $o['status'] === 'Active' ? money($monthly).' at current rates' : 'Not billed while inactive') ?>
                 <?= $detail('Maintenance Start Date', fmt_date($o['maintenance_start_date'])) ?>
                 <?= $detail('Permanent Address', $o['permanent_address']) ?>
                 <?= $detail('Residential Address', $o['residential_address']) ?>
@@ -222,3 +291,7 @@ $detail = function (string $label, ?string $value) {
         <?php endif; ?>
     </div>
 </div>
+
+<?php if (can('owners.deactivate')): ?>
+    <?php $this->load->view('owners/_status_modal'); ?>
+<?php endif; ?>
