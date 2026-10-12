@@ -19,6 +19,22 @@ if (association('bank_ifsc') !== '') { $bank[] = 'IFSC '.association('bank_ifsc'
 if (association('upi_id') !== '') { $bank[] = 'UPI '.association('upi_id'); }
 $advance = to_paise_signed($r['advance_amount']) > 0;
 $fs = $small ? 9 : 11;
+
+// Centre watermark: the same association logo, sized from its own proportions (never stretched)
+$mark = NULL;
+if ($logo !== '' && preg_match('#^data:image/[a-z]+;base64,(.+)$#', $logo, $m))
+{
+    $size = @getimagesizefromstring((string) base64_decode($m[1]));
+    if ($size !== FALSE && $size[0] > 0 && $size[1] > 0)
+    {
+        $mark_w = $small ? 170 : 280;
+        $mark_h = (int) round($mark_w * $size[1] / $size[0]);
+        // Browsers centre on the receipt block (top: 50%). Dompdf resolves a percentage top against the
+        // page, so the PDF uses the measured middle of the rendered receipt instead (A4 ~315px, A5 ~238px).
+        $mark_top = $for_pdf ? (($small ? 238 : 315) - (int) ($mark_h / 2)).'px' : '50%';
+        $mark = array('w' => $mark_w, 'h' => $mark_h, 'top' => $mark_top, 'margin' => $for_pdf ? 0 : -(int) ($mark_h / 2));
+    }
+}
 ?>
 <?php if ($for_pdf): ?>
 <!DOCTYPE html>
@@ -50,9 +66,15 @@ $fs = $small ? 9 : 11;
     .rcpt .note { margin-top: <?= $small ? 8 : 14 ?>px; text-align: center; font-size: <?= $fs - 2 ?>px; color: #6b7280; }
     .rcpt .watermark { position: absolute; top: 38%; left: 8%; width: 84%; text-align: center; font-size: <?= $small ? 46 : 72 ?>px; font-weight: bold; color: #dc2626; opacity: 0.18; transform: rotate(-24deg); }
     .rcpt .cancel-box { margin-top: 8px; padding: 6px 8px; border: 1px solid #dc2626; color: #b91c1c; }
+<?php if ($mark !== NULL): ?>
+    .rcpt { z-index: 0; }
+    .rcpt .logo-mark { position: absolute; left: 0; width: 100%; top: <?= $mark['top'] ?>; margin-top: <?= (int) $mark['margin'] ?>px; text-align: center; z-index: -1; }
+    .rcpt .logo-mark img { width: <?= (int) $mark['w'] ?>px; height: <?= (int) $mark['h'] ?>px; opacity: 0.08; }
+<?php endif; ?>
 </style>
 
 <div class="rcpt">
+    <?php if ($mark !== NULL): ?><div class="logo-mark"><img src="<?= $logo ?>" alt=""></div><?php endif; ?>
     <?php if ($cancelled): ?><div class="watermark">CANCELLED</div><?php endif; ?>
 
     <?php $this->load->view('documents/_letterhead', array('logo' => $logo, 'small' => $small)); ?>
