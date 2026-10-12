@@ -35,6 +35,24 @@ if ($logo !== '' && preg_match('#^data:image/[a-z]+;base64,(.+)$#', $logo, $m))
         $mark = array('w' => $mark_w, 'h' => $mark_h, 'top' => $mark_top, 'margin' => $for_pdf ? 0 : -(int) ($mark_h / 2));
     }
 }
+
+// Status watermark for active receipts (cancelled receipts keep the existing CANCELLED watermark).
+// Partial = dues were still outstanding after this payment (balance_after is stored on the receipt).
+$status_mark = NULL;
+if ( ! $cancelled)
+{
+    $partial = to_paise_signed($r['balance_after']) > 0;
+    $sm_size = $small ? 34 : 52;
+    $sm_half = (int) round($sm_size * 0.6);
+    $status_mark = array(
+        'label'  => $partial ? 'PARTIALLY PAID' : 'PAYMENT RECEIVED',
+        'class'  => $partial ? 'partial' : 'received',
+        'size'   => $sm_size,
+        // Same centre as the logo watermark (see above for why the PDF uses a fixed offset)
+        'top'    => $for_pdf ? (($small ? 238 : 315) - $sm_half).'px' : '50%',
+        'margin' => $for_pdf ? 0 : -$sm_half,
+    );
+}
 ?>
 <?php if ($for_pdf): ?>
 <!DOCTYPE html>
@@ -71,11 +89,18 @@ if ($logo !== '' && preg_match('#^data:image/[a-z]+;base64,(.+)$#', $logo, $m))
     .rcpt .logo-mark { position: absolute; left: 0; width: 100%; top: <?= $mark['top'] ?>; margin-top: <?= (int) $mark['margin'] ?>px; text-align: center; z-index: -1; }
     .rcpt .logo-mark img { width: <?= (int) $mark['w'] ?>px; height: <?= (int) $mark['h'] ?>px; opacity: 0.08; }
 <?php endif; ?>
+<?php if ($status_mark !== NULL): ?>
+    .rcpt { z-index: 0; }
+    .rcpt .status-mark { position: absolute; left: 0; width: 100%; top: <?= $status_mark['top'] ?>; margin-top: <?= (int) $status_mark['margin'] ?>px; text-align: center; white-space: nowrap; font-size: <?= (int) $status_mark['size'] ?>px; line-height: 1.2; font-weight: bold; letter-spacing: 2px; opacity: 0.14; transform: rotate(-24deg); z-index: -1; }
+    .rcpt .status-mark.received { color: #168447; }
+    .rcpt .status-mark.partial { color: #a66b00; }
+<?php endif; ?>
 </style>
 
 <div class="rcpt">
     <?php if ($mark !== NULL): ?><div class="logo-mark"><img src="<?= $logo ?>" alt=""></div><?php endif; ?>
     <?php if ($cancelled): ?><div class="watermark">CANCELLED</div><?php endif; ?>
+    <?php if ($status_mark !== NULL): ?><div class="status-mark <?= $status_mark['class'] ?>"><?= e($status_mark['label']) ?></div><?php endif; ?>
 
     <?php $this->load->view('documents/_letterhead', array('logo' => $logo, 'small' => $small)); ?>
 
