@@ -937,3 +937,35 @@ Owners are never hard-deleted. Bills, payments, receipts and audit rows all refe
 - **Monthly maintenance** is not a per-owner field. It is the sum of the current rates for the owner's active plots (section 8), shown on the list, profile and form.
 - `04_verify.sql` checks 14 and 15: an inactive owner has a deactivation record (and an active owner has none), and no bill was issued for a month after deactivation.
 
+## 11. Opening Balance and Fund Ledger
+
+The portal has no separate ledger table. Funds are derived from `payments`, `other_incomes` and `expenses` (Active rows only), which already record the date and payment mode. The opening balance is added on top of these, without a parallel ledger.
+
+**Table `fund_opening_balances`** (new installs: `01_schema.sql`; existing databases: `06_opening_balance.sql`):
+
+| Column | Purpose |
+|---|---|
+| `reference_no` | Unique reference `OB-YYYY-NNNN`, from `document_sequences` (type `OPENING`) |
+| `opening_date`, `bank_amount`, `cash_amount`, `total_amount` (generated) | Verified funds at the end of the opening date (amounts ≥ 0) |
+| `status` Active / Superseded, `active_key` (generated, unique) | At most one Active entry, enforced by the database |
+| `corrects_id`, `correction_reason`, `superseded_at`, `superseded_by` | A correction inserts a new Active row and marks the old one Superseded. Nothing is deleted |
+| `request_token` (unique) | The same form submitted twice (refresh or double click) saves once |
+| `created_by`, `created_at` | Entered by, and entered date and time |
+
+**Ledger rule** (`Fund_model`, used by the dashboard, the Income & Expense report and the Opening Balance page):
+
+```
+Available funds = opening total + payments + other income − expenses dated AFTER the opening date
+Bank            = opening bank  + the same, for every payment mode except Cash
+Cash            = opening cash  + the same, for payment mode Cash
+```
+
+- Transactions dated on or before the opening date are inside the verified figure and are not counted again. They stay in their receipts and period reports.
+- Without an opening balance, the original calculation applies unchanged (all transactions).
+- Outstanding maintenance and advance credit are shown separately and are never part of funds.
+- **Income & Expense report:** opening = funds at the day before the period; closing = funds at the end. When the opening date falls inside the period, an *Opening balance brought forward* line (verified total minus portal transactions up to that date) makes Opening + Brought forward + Surplus = Closing.
+- **Permission** `finance.opening_balance` (Super Admin, Admin). Saving runs in a transaction with `SELECT … FOR UPDATE` and is audited (*Opening Balance Recorded* / *Opening Balance Corrected*).
+- `04_verify.sql` check 16: at most one Active entry, and every Superseded entry has a replacement.
+
+**Rollback:** `DROP TABLE fund_opening_balances; DELETE FROM permissions WHERE perm_key = 'finance.opening_balance'; DELETE FROM document_sequences WHERE seq_type = 'OPENING';` then restore the previous application files. No other table is changed by this feature.
+

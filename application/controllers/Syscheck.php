@@ -146,7 +146,7 @@ class Syscheck extends MY_Controller
             "SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema = ? AND table_type = 'BASE TABLE'",
             array($db_name)
         )->row()->c;
-        $checks[] = $this->result('Tables in '.$db_name, $tables >= 30 ? 'ok' : 'error', $tables.' of 30 found'.($tables < 30 ? ' - import database/01_schema.sql' : ''));
+        $checks[] = $this->result('Tables in '.$db_name, $tables >= 31 ? 'ok' : 'error', $tables.' of 31 found'.($tables < 31 ? ' - import database/01_schema.sql' : ''));
 
         $views = (int) $this->db->query(
             'SELECT COUNT(*) AS c FROM information_schema.views WHERE table_schema = ?',
@@ -154,7 +154,7 @@ class Syscheck extends MY_Controller
         )->row()->c;
         $checks[] = $this->result('Reporting views', $views >= 2 ? 'ok' : 'error', $views.' of 2 found');
 
-        if ($tables >= 30)
+        if ($tables >= 31)
         {
             $roles = $this->db->count_all('roles');
             $perms = $this->db->count_all('permissions');

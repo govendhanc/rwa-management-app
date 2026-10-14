@@ -43,6 +43,7 @@ $config['sidebar_menu'] = array(
     array('section' => 'Finance'),
     array('label' => 'Expenses',     'icon' => 'fa-solid fa-money-bill-wave', 'url' => 'expenses', 'perm' => 'expenses.view'),
     array('label' => 'Other Income', 'icon' => 'fa-solid fa-hand-holding-dollar', 'url' => 'incomes', 'perm' => 'incomes.view'),
+    array('label' => 'Opening Balance', 'icon' => 'fa-solid fa-flag-checkered', 'url' => 'opening-balance', 'perm' => 'finance.opening_balance'),
     array('label' => 'Reports', 'icon' => 'fa-solid fa-chart-column', 'children' => array(
         array('label' => 'Outstanding',        'url' => 'reports/outstanding',    'perm' => 'reports.view'),
         array('label' => 'Monthly Collection', 'url' => 'reports/collection',     'perm' => 'reports.view'),

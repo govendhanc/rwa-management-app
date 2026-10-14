@@ -202,12 +202,18 @@ class Report_model extends CI_Model
         $expense_total = 0;
         foreach ($expenses as $x) { $expense_total += to_paise_signed($x['total']); }
 
-        $opening = $sum("SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE status = 'Active' AND payment_date < ?", array($from))
-            + $sum("SELECT COALESCE(SUM(amount), 0) AS total FROM other_incomes WHERE status = 'Active' AND income_date < ?", array($from))
-            - $sum("SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE status = 'Active' AND expense_date < ?", array($from));
-
         $income_total = $collection + $other_total;
         $net = $income_total - $expense_total;
+
+        // Fund position from the fund ledger (Fund_model): the association opening balance replaces
+        // everything recorded on or before its date. When that date falls inside this period, the
+        // difference is shown as "brought forward" so Opening + Brought forward + Net = Closing.
+        $this->load->model('fund_model');
+        $opening = $this->fund_model->balance_at(date('Y-m-d', strtotime($from.' -1 day')));
+        $closing = $this->fund_model->balance_at($to);
+        $ob = $this->fund_model->active_opening();
+        $spans_opening = $ob !== NULL && $ob['opening_date'] >= $from && $ob['opening_date'] <= $to;
+        $brought_forward = $spans_opening ? $closing - $opening - $net : 0;
         return array(
             'collection'     => from_paise($collection),
             'by_mode'        => $by_mode,
@@ -218,7 +224,9 @@ class Report_model extends CI_Model
             'expense_total'  => from_paise($expense_total),
             'net'            => from_paise($net),
             'opening'        => from_paise($opening),
-            'closing'        => from_paise($opening + $net),
+            'brought_forward' => $spans_opening ? from_paise($brought_forward) : NULL,
+            'opening_entry'  => $ob,
+            'closing'        => from_paise($closing),
         );
     }
 }

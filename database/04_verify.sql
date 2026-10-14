@@ -133,6 +133,13 @@ JOIN owners o ON o.id = m.owner_id
 WHERE o.status = 'Inactive' AND m.record_status = 'Active'
   AND m.period_start > o.deactivated_at;
 
+-- 16. Opening balance history: at most one Active entry, and every Superseded entry was replaced
+SELECT 'CHECK 16: opening balance history consistent' AS check_name,
+       (SELECT GREATEST(COUNT(*) - 1, 0) FROM fund_opening_balances WHERE status = 'Active')
+     + (SELECT COUNT(*) FROM fund_opening_balances s
+        WHERE s.status = 'Superseded'
+          AND NOT EXISTS (SELECT 1 FROM fund_opening_balances n WHERE n.corrects_id = s.id)) AS issue_count;
+
 -- -------------------------------------------------------------------------------------
 -- Summary figures (compare with the dashboard)
 -- -------------------------------------------------------------------------------------

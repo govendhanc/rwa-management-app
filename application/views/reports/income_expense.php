@@ -42,6 +42,11 @@ $net = to_paise_signed($r['net']);
                 <tr class="fw-bold <?= $net >= 0 ? 'table-success' : 'table-danger' ?>"><td><?= $net >= 0 ? 'Surplus' : 'Deficit' ?> for the period (Income &minus; Expenses)</td><td class="text-end amount"><?= e(money($r['net'])) ?></td></tr>
                 <tr class="table-light"><th colspan="2">Fund position</th></tr>
                 <tr><td class="ps-4">Opening Balance (before <?= e(fmt_date($from)) ?>)</td><td class="text-end amount"><?= e(money($r['opening'])) ?></td></tr>
+                <?php if ($r['brought_forward'] !== NULL): $ob = $r['opening_entry']; ?>
+                    <tr><td class="ps-4">Add: Opening balance brought forward on <?= e(fmt_date($ob['opening_date'])) ?> (<?= e($ob['reference_no']) ?>)
+                        <div class="small text-muted">Verified bank + cash <?= e(money($ob['total_amount'])) ?><?= to_paise_signed($r['brought_forward']) !== to_paise_signed($ob['total_amount']) ? ', less transactions recorded in the portal up to that date (already included in it)' : '' ?></div></td>
+                        <td class="text-end amount"><?= e(money($r['brought_forward'])) ?></td></tr>
+                <?php endif; ?>
                 <tr><td class="ps-4"><?= $net >= 0 ? 'Add: Surplus' : 'Less: Deficit' ?></td><td class="text-end amount"><?= e(money($r['net'])) ?></td></tr>
                 <tr class="fw-bold fs-5 border-top border-dark"><td>Closing Balance</td><td class="text-end amount"><?= e(money($r['closing'])) ?></td></tr>
             </tbody>

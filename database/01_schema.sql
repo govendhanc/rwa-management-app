@@ -27,6 +27,7 @@ DROP TABLE IF EXISTS import_batches;
 DROP TABLE IF EXISTS audit_logs;
 DROP TABLE IF EXISTS notifications;
 DROP TABLE IF EXISTS whatsapp_messages;
+DROP TABLE IF EXISTS fund_opening_balances;
 DROP TABLE IF EXISTS other_incomes;
 DROP TABLE IF EXISTS expenses;
 DROP TABLE IF EXISTS expense_categories;
@@ -621,6 +622,38 @@ CREATE TABLE other_incomes (
     CONSTRAINT chk_other_incomes_amount CHECK (amount > 0),
     CONSTRAINT fk_other_incomes_created_by FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL,
     CONSTRAINT fk_other_incomes_updated_by FOREIGN KEY (updated_by) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Association funds (bank + cash) brought forward when the portal's ledger starts.
+-- One Active row at most (uq_fund_opening_active). A correction inserts a new row and marks the
+-- previous one Superseded; rows are never deleted. Available funds = opening total + payments,
+-- other income and expenses dated AFTER opening_date (earlier ones are already inside the figure).
+CREATE TABLE fund_opening_balances (
+    id                 INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    reference_no       VARCHAR(20)   NOT NULL,
+    opening_date       DATE          NOT NULL,
+    bank_amount        DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    cash_amount        DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    total_amount       DECIMAL(12,2) GENERATED ALWAYS AS (bank_amount + cash_amount) STORED,
+    remarks            VARCHAR(500)  NULL,
+    status             ENUM('Active','Superseded') NOT NULL DEFAULT 'Active',
+    active_key         TINYINT       GENERATED ALWAYS AS (IF(status = 'Active', 1, NULL)) STORED,
+    corrects_id        INT UNSIGNED  NULL,
+    correction_reason  VARCHAR(255)  NULL,
+    superseded_at      DATETIME      NULL,
+    superseded_by      INT UNSIGNED  NULL,
+    request_token      CHAR(32)      NULL,
+    created_by         INT UNSIGNED  NULL,
+    created_at         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_fund_opening_reference (reference_no),
+    UNIQUE KEY uq_fund_opening_active (active_key),
+    UNIQUE KEY uq_fund_opening_request (request_token),
+    KEY ix_fund_opening_corrects (corrects_id),
+    CONSTRAINT chk_fund_opening_amounts CHECK (bank_amount >= 0 AND cash_amount >= 0),
+    CONSTRAINT fk_fund_opening_corrects FOREIGN KEY (corrects_id) REFERENCES fund_opening_balances (id),
+    CONSTRAINT fk_fund_opening_superseded_by FOREIGN KEY (superseded_by) REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT fk_fund_opening_created_by FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================================================

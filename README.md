@@ -44,6 +44,7 @@ mysql -u root -p --default-character-set=utf8mb4 rowa_portal < database/03_demo_
 mysql -u root -p -t rowa_portal < database/04_verify.sql
 ```
 **Upgrading a database installed before the owner deactivate/reactivate change:** take a backup, then run `database/05_owner_lifecycle.sql` once. It only adds columns and a permission; no data is changed. New installations don't need it.
+**Upgrading a database installed before the opening-balance change:** take a backup, then run `database/06_opening_balance.sql`. It only creates the `fund_opening_balances` table and the `finance.opening_balance` permission, and is safe to run again. New installations don't need it.
 On a live server, create a dedicated MySQL user with privileges on `rowa_portal` only. Don't use `root`.
 
 ### 3.2 Environment file
@@ -129,6 +130,7 @@ Do these in order after the first login:
 3. **Owners**: add owners one at a time (an owner can have several plots), or use **Owners → Import Owners** for a CSV file. Download the template from that page. The columns are Plot No, House No, Block, Street, Owner Name, Mobile, WhatsApp, Email, Owner Type and Built Status. A row with the same owner name and mobile number adds another plot to that owner. Run *Validate only* first; it shows every problem without saving anything. The limit is 2,000 rows per file.
 4. **Tenants** (rented houses only): record the tenant, ID proof (last 4 digits only), emergency contact and rental agreement. Bills always go to the owner.
 5. **Users**: create a login for each committee member with the right role (Admin, Treasurer or Viewer). Don't share the Super Admin login.
+6. **Finance → Opening Balance** (Super Admin / Admin): after 31-Oct-2026, enter the **verified** bank balance and cash in hand as at the end of that day. This is the money brought forward from earlier collections. It is not new income, so no receipt or owner payment is created. The dashboard then shows *Opening balance + collections + other income − expenses = available balance*, counting only transactions dated after the opening date. Anything already entered in the portal on or before that date is treated as included in the verified figure. If the figure was wrong, use **Correct opening balance**: it needs a reason, and the original entry is kept. Bank = every payment mode except Cash (the association's single bank account); Cash = payment mode Cash.
 
 **Every month:**
 1. **Maintenance → Generate Monthly**: preview, then generate. Each plot gets one bill per month. Generating the same month again only adds plots that are missing, so it never duplicates.

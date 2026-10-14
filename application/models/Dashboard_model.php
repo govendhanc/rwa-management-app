@@ -62,23 +62,27 @@ class Dashboard_model extends CI_Model
     }
 
     /**
-     * All-time financial position.
+     * Financial position from the fund ledger (opening balance + later transactions) and dues.
      *
-     * @return array<string, string>
+     * @return array<string, mixed>
      */
     public function financial_totals(): array
     {
         $row = $this->db->query(
             "SELECT
                 (SELECT COALESCE(SUM(balance_amount), 0) FROM maintenance WHERE record_status = 'Active') AS total_outstanding,
-                (SELECT COALESCE(SUM(unallocated_amount), 0) FROM payments WHERE status = 'Active') AS advance_credit,
-                (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'Active') AS total_collection,
-                (SELECT COALESCE(SUM(amount), 0) FROM other_incomes WHERE status = 'Active') AS other_income,
-                (SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE status = 'Active') AS total_expenses"
+                (SELECT COALESCE(SUM(unallocated_amount), 0) FROM payments WHERE status = 'Active') AS advance_credit"
         )->row_array();
 
-        $balance = to_paise_signed($row['total_collection']) + to_paise_signed($row['other_income']) - to_paise_signed($row['total_expenses']);
-        $row['current_balance'] = from_paise($balance);
+        // Funds come from the fund ledger: with an opening balance, only transactions after its date are
+        // added to it; without one, all transactions (the original calculation). Dues are never funds.
+        $this->load->model('fund_model');
+        $fund = $this->fund_model->position();
+        $row['total_collection'] = from_paise($fund['collections']['total']);
+        $row['other_income'] = from_paise($fund['other_income']['total']);
+        $row['total_expenses'] = from_paise($fund['expenses']['total']);
+        $row['current_balance'] = from_paise($fund['closing']['total']);
+        $row['fund'] = $fund;
         return $row;
     }
 

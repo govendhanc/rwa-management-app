@@ -64,7 +64,12 @@ $tile = function (string $label, string $value, string $icon, string $tone, stri
 </div>
 
 <!-- Financial position -->
+<?php $fund = $finance['fund']; $rs = function (int $paise): string { return money(from_paise($paise)); }; ?>
+<?php if ( ! $fund['has_opening']): ?>
 <div class="section-title">Financial position &middot; to date</div>
+<?php if (can('finance.opening_balance')): ?>
+    <div class="alert alert-warning py-2 small"><i class="fa-solid fa-circle-info me-1"></i>The association's opening balance (bank + cash brought forward) is not recorded yet, so the balance below counts only transactions entered in the portal. <a href="<?= e(site_url('opening-balance')) ?>">Record the opening balance</a></div>
+<?php endif; ?>
 <div class="row g-3 mb-4">
     <div class="col-12 col-sm-6 col-lg-4"><?= $tile('Total collection', money($finance['total_collection']), 'fa-solid fa-sack-dollar', 'success') ?></div>
     <div class="col-12 col-sm-6 col-lg-4"><?= $tile('Other income', money($finance['other_income']), 'fa-solid fa-hand-holding-dollar', 'info') ?></div>
@@ -73,6 +78,42 @@ $tile = function (string $label, string $value, string $icon, string $tone, stri
     <div class="col-12 col-sm-6 col-lg-4"><?= $tile('Total outstanding', money($finance['total_outstanding']), 'fa-solid fa-triangle-exclamation', 'danger', 'All months') ?></div>
     <div class="col-12 col-sm-6 col-lg-4"><?= $tile('Advance credit', money($finance['advance_credit']), 'fa-solid fa-forward', 'secondary', 'Held for future months') ?></div>
 </div>
+<?php else: $ob = $fund['opening_row']; ?>
+<div class="section-title">Financial position &middot; since opening balance of <?= e(fmt_date($ob['opening_date'])) ?></div>
+<div class="row g-3 mb-3">
+    <div class="col-12 col-sm-6 col-xl-3"><?= $tile('Opening balance', $rs($fund['opening']['total']), 'fa-solid fa-flag-checkered', 'secondary', 'Bank '.$rs($fund['opening']['bank']).' · Cash '.$rs($fund['opening']['cash'])) ?></div>
+    <div class="col-12 col-sm-6 col-xl-3"><?= $tile('Collections since '.fmt_date($fund['since']), money($finance['total_collection']), 'fa-solid fa-sack-dollar', 'success', (int) $fund['collections']['count'].' payment(s)') ?></div>
+    <div class="col-12 col-sm-6 col-xl-3"><?= $tile('Other income', money($finance['other_income']), 'fa-solid fa-hand-holding-dollar', 'info', 'Since '.fmt_date($fund['since'])) ?></div>
+    <div class="col-12 col-sm-6 col-xl-3"><?= $tile('Total expenses', money($finance['total_expenses']), 'fa-solid fa-money-bill-wave', 'warning', 'Since '.fmt_date($fund['since'])) ?></div>
+</div>
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-4"><?= $tile('Current available balance', money($finance['current_balance']), 'fa-solid fa-scale-balanced', 'primary', 'Bank '.$rs($fund['closing']['bank']).' · Cash '.$rs($fund['closing']['cash'])) ?></div>
+    <div class="col-12 col-sm-6 col-lg-4"><?= $tile('Total outstanding', money($finance['total_outstanding']), 'fa-solid fa-triangle-exclamation', 'danger', 'Dues - not part of available funds') ?></div>
+    <div class="col-12 col-sm-6 col-lg-4"><?= $tile('Advance credit', money($finance['advance_credit']), 'fa-solid fa-forward', 'secondary', 'Held for future months') ?></div>
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <span>Maintenance collections by month</span>
+                <span class="small text-muted">Opening <?= e($rs($fund['opening']['total'])) ?> + collections <?= e(money($finance['total_collection'])) ?> + other income <?= e(money($finance['other_income'])) ?> &minus; expenses <?= e(money($finance['total_expenses'])) ?> = <strong><?= e(money($finance['current_balance'])) ?></strong></span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0" id="fundByMonth">
+                    <thead><tr><th>Month</th><th class="text-end">Payments</th><th class="text-end">Collected</th></tr></thead>
+                    <tbody>
+                    <?php if (empty($fund['by_month'])): ?>
+                        <tr><td colspan="3" class="text-muted">No payments recorded since <?= e(fmt_date($fund['since'])) ?>.</td></tr>
+                    <?php endif; ?>
+                    <?php foreach ($fund['by_month'] as $mrow): ?>
+                        <tr><td><?= e($mrow['label']) ?> maintenance collection</td><td class="text-end"><?= (int) $mrow['count'] ?></td><td class="text-end amount"><?= e($rs($mrow['total'])) ?></td></tr>
+                    <?php endforeach; ?>
+                    <tr class="fw-bold border-top"><td>Total collections since <?= e(fmt_date($fund['since'])) ?></td><td class="text-end"><?= (int) $fund['collections']['count'] ?></td><td class="text-end amount"><?= e(money($finance['total_collection'])) ?></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <!-- Charts -->
 <div class="row g-3 mb-3">
