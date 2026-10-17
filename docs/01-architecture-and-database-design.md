@@ -969,3 +969,28 @@ Cash            = opening cash  + the same, for payment mode Cash
 
 **Rollback:** `DROP TABLE fund_opening_balances; DELETE FROM permissions WHERE perm_key = 'finance.opening_balance'; DELETE FROM document_sequences WHERE seq_type = 'OPENING';` then restore the previous application files. No other table is changed by this feature.
 
+## 12. Bank and Cash Transfers, Fund Ledger
+
+Money received and spent stays in the existing modules: payments (maintenance), `other_incomes` (corpus, interest, rent…) and `expenses`. The payment mode decides the account: Cash means cash in hand, and every other mode means the association's single bank account. The one new table records money **moved between** the two accounts.
+
+**Table `fund_transfers`** (new installs: `01_schema.sql`; existing databases: `07_fund_transfers.sql`): `transfer_code` (`TRF-YYYY-NNNN`, from `document_sequences` type `TRANSFER`), `transfer_date`, `direction` (*Bank to Cash* = withdrawal, *Cash to Bank* = deposit), `amount` (> 0, CHECK), `description`, `reference`, `remarks`, `status` Active / Cancelled with `cancel_reason`, `cancelled_by` and `cancelled_at`, `request_token` (unique, so a double submit saves once), `created_by`, `created_at`.
+
+**Balances** (`Fund_model`, used by the dashboard, the Bank & Cash page, the Opening Balance page and the Income & Expense report):
+
+```
+Bank = opening bank + non-cash receipts − non-cash expenses − withdrawals + deposits
+Cash = opening cash + cash receipts     − cash expenses     + withdrawals − deposits
+Available balance = Bank + Cash      (a transfer changes Bank and Cash, never the total)
+```
+
+Only Active rows dated after the opening-balance date are counted (see §11). Cancelled payments, income, expenses and transfers drop out automatically, because balances are derived, never posted. Nothing can be counted twice or left half-updated.
+
+- **Bank & Cash page** (`/funds`, `transfers.view`): bank, cash and total balances; the withdrawal / deposit form (`transfers.manage`, with confirmation); and a date-range ledger of every money movement. Each row shows bank and cash in / out and running balances, starting from the balance brought forward and ending at the closing balance, which equals the dashboard.
+- **Rules:** amount > 0; date not in the future and after the opening-balance date; cancellation needs a reason and is audited (*Transfer Recorded* / *Transfer Cancelled*). Rows are never deleted.
+- **Permissions:** `transfers.manage` for Super Admin and Treasurer (who already record expenses and income); `transfers.view` for all roles.
+- `04_verify.sql` check 17: transfer status and cancellation fields are consistent.
+
+**Receipt logo:** `Pdf_renderer::logo_status()` reports why a logo cannot be used. Screen and print always embed JPG/PNG. A PDF needs `gd` for PNG; the PDF is still produced, the reason is logged, and System Check shows a *Receipt logo* line. The receipt PDF cache key includes the embedded logo and the letterhead template, so a PDF made while the logo was unavailable is regenerated once it is fixed. `.gitignore` keeps `public/uploads/branding/logo.jpg`, so deployments carry the logo.
+
+**Rollback:** `DROP TABLE fund_transfers; DELETE FROM permissions WHERE perm_key IN ('transfers.view','transfers.manage'); DELETE FROM document_sequences WHERE seq_type = 'TRANSFER';` then restore the previous application files.
+

@@ -42,32 +42,56 @@ class Pdf_renderer
     }
 
     /**
-     * The association logo as a data URI ('' when missing or not embeddable without GD).
+     * The association logo as a data URI ('' when it cannot be used).
+     *
+     * $for_pdf = FALSE (screen preview / browser print): JPEG and PNG are always embedded.
+     * $for_pdf = TRUE (Dompdf): a PNG needs the GD extension inside Dompdf, so without GD it is
+     * left out of the PDF. Every case that drops the logo is logged so it is never silent.
      */
-    public function logo_data_uri(): string
+    public function logo_data_uri(bool $for_pdf = TRUE): string
+    {
+        $status = $this->logo_status();
+        if ($status['problem'] !== NULL && ($for_pdf || $status['mime'] === NULL))
+        {
+            static $logged = array();
+            if ( ! isset($logged[$status['problem']]))
+            {
+                $logged[$status['problem']] = TRUE;
+                log_message('error', 'Association logo not shown'.($for_pdf ? ' in PDF' : '').': '.$status['problem']);
+            }
+            return '';
+        }
+        return 'data:'.$status['mime'].';base64,'.base64_encode((string) file_get_contents($status['file']));
+    }
+
+    /**
+     * Where the configured logo stands (used by logo_data_uri() and System Check).
+     *
+     * @return array{file: string, mime: ?string, problem: ?string} problem = why the PDF cannot show it
+     */
+    public function logo_status(): array
     {
         $path = association('logo_path');
         if ($path === '' || strpos($path, '..') !== FALSE)
         {
-            return '';
+            return array('file' => '', 'mime' => NULL, 'problem' => 'no logo is configured (Settings -> Association)');
         }
         $file = FCPATH.str_replace('/', DIRECTORY_SEPARATOR, $path);
-        if ( ! is_file($file))
+        if ( ! is_file($file) || ! is_readable($file))
         {
-            return '';
+            return array('file' => $file, 'mime' => NULL, 'problem' => 'the logo file public/'.$path.' is missing or not readable');
         }
         $finfo = new finfo(FILEINFO_MIME_TYPE);
         $mime = (string) $finfo->file($file);
         if ( ! in_array($mime, array('image/jpeg', 'image/png'), TRUE))
         {
-            return '';
+            return array('file' => $file, 'mime' => NULL, 'problem' => 'public/'.$path.' is not a JPG or PNG image');
         }
-        // PNG needs the GD extension inside Dompdf; JPEG does not
         if ($mime === 'image/png' && ! extension_loaded('gd'))
         {
-            return '';
+            return array('file' => $file, 'mime' => $mime, 'problem' => 'the logo is a PNG and the PHP gd extension is not enabled (use a JPG logo or enable gd)');
         }
-        return 'data:'.$mime.';base64,'.base64_encode((string) file_get_contents($file));
+        return array('file' => $file, 'mime' => $mime, 'problem' => NULL);
     }
 
     /**

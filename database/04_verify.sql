@@ -140,6 +140,12 @@ SELECT 'CHECK 16: opening balance history consistent' AS check_name,
         WHERE s.status = 'Superseded'
           AND NOT EXISTS (SELECT 1 FROM fund_opening_balances n WHERE n.corrects_id = s.id)) AS issue_count;
 
+-- 17. Bank / cash transfers: cancelled ones record who, when and why; active ones carry no cancellation
+SELECT 'CHECK 17: transfer status consistent' AS check_name, COUNT(*) AS issue_count
+FROM fund_transfers
+WHERE (status = 'Cancelled' AND (cancel_reason IS NULL OR cancelled_at IS NULL))
+   OR (status = 'Active' AND (cancel_reason IS NOT NULL OR cancelled_at IS NOT NULL));
+
 -- -------------------------------------------------------------------------------------
 -- Summary figures (compare with the dashboard)
 -- -------------------------------------------------------------------------------------

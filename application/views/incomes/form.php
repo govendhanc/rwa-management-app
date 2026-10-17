@@ -51,7 +51,7 @@ $val = function (string $k) use ($income) { return set_value($k, (string) $incom
             </div>
         </div>
         <div class="d-flex gap-2 mt-4">
-            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk me-1"></i> Save</button>
+            <button type="submit" class="btn btn-primary" data-confirm="Save this income? It increases the bank or cash balance according to the payment mode." data-confirm-button="Save income" data-confirm-variant="primary"><i class="fa-solid fa-floppy-disk me-1"></i> Save</button>
             <a href="<?= e(site_url('incomes')) ?>" class="btn btn-light">Cancel</a>
         </div>
         <?= form_close() ?>

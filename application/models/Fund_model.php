@@ -15,7 +15,10 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *   (funds = all payments + other income - expenses).
  *
  * Bank / cash: payment mode "Cash" is cash; every other mode (UPI, Bank Transfer, Cheque, NEFT,
- * RTGS, Other) is the association's single configured bank account.
+ * RTGS, Other) is the association's single configured bank account. Transfers (fund_transfers)
+ * move money between the two: a withdrawal (Bank to Cash) lowers bank and raises cash, a deposit
+ * does the reverse; the total never changes, so a withdrawal and the expense paid from that cash
+ * are not counted twice.
  *
  * Outstanding maintenance is never part of funds - only money actually received or spent.
  */
@@ -81,11 +84,12 @@ class Fund_model extends MY_Model
         $collections = $this->sums('payments', $after, NULL);
         $other = $this->sums('other_incomes', $after, NULL);
         $expenses = $this->sums('expenses', $after, NULL);
+        $transfers = $this->transfer_sums($after, NULL);
 
         $closing = array();
         foreach (array('bank', 'cash', 'total') as $k)
         {
-            $closing[$k] = $opening[$k] + $collections[$k] + $other[$k] - $expenses[$k];
+            $closing[$k] = $opening[$k] + $collections[$k] + $other[$k] - $expenses[$k] + $transfers[$k];
         }
 
         return array(
@@ -96,6 +100,7 @@ class Fund_model extends MY_Model
             'collections'  => $collections,
             'other_income' => $other,
             'expenses'     => $expenses,
+            'transfers'    => $transfers,
             'closing'      => $closing,
             'by_month'     => $after !== NULL ? $this->collections_by_month($after) : array(),
             'before'       => $after !== NULL ? $this->recorded_up_to($after) : NULL,
@@ -107,12 +112,142 @@ class Fund_model extends MY_Model
      */
     public function balance_at(string $date): int
     {
+        return $this->balances_at($date)['total'];
+    }
+
+    /**
+     * Bank, cash and total funds at the end of $date (paise).
+     *
+     * @return array{bank: int, cash: int, total: int}
+     */
+    public function balances_at(string $date): array
+    {
         $ob = $this->active_opening();
+        $after = NULL;
+        $bal = array('bank' => 0, 'cash' => 0);
         if ($ob !== NULL && $date >= $ob['opening_date'])
         {
-            return to_paise_signed($ob['total_amount']) + $this->net((string) $ob['opening_date'], $date);
+            $after = (string) $ob['opening_date'];
+            $bal = array('bank' => to_paise_signed($ob['bank_amount']), 'cash' => to_paise_signed($ob['cash_amount']));
         }
-        return $this->net(NULL, $date);
+        $in1 = $this->sums('payments', $after, $date);
+        $in2 = $this->sums('other_incomes', $after, $date);
+        $out = $this->sums('expenses', $after, $date);
+        $tr = $this->transfer_sums($after, $date);
+        foreach (array('bank', 'cash') as $k)
+        {
+            $bal[$k] += $in1[$k] + $in2[$k] - $out[$k] + $tr[$k];
+        }
+        $bal['total'] = $bal['bank'] + $bal['cash'];
+        return $bal;
+    }
+
+    /**
+     * Fund ledger for a date range: opening balances, every money movement (Active entries only)
+     * with bank / cash in / out and running balances, and closing balances (all paise).
+     * With an opening balance the range starts no earlier than the day after its date - earlier
+     * entries are already inside the verified opening figure.
+     *
+     * @return array<string, mixed>
+     */
+    public function ledger(string $from, string $to): array
+    {
+        $ob = $this->active_opening();
+        $clamped = FALSE;
+        if ($ob !== NULL)
+        {
+            $first = date('Y-m-d', strtotime($ob['opening_date'].' +1 day'));
+            if ($from < $first)
+            {
+                $from = $first;
+                $clamped = TRUE;
+            }
+        }
+        if ($to < $from)
+        {
+            $to = $from;
+        }
+
+        $opening = $this->balances_at(date('Y-m-d', strtotime($from.' -1 day')));
+        $rows = $this->db->query(
+            "SELECT * FROM (
+                SELECT 'payment' AS kind, p.id, p.payment_date AS d, COALESCE(r.receipt_no, CONCAT('Payment #', p.id)) AS ref,
+                       CONCAT(o.owner_code, ' - ', o.owner_name) AS particulars, p.payment_mode AS mode, p.amount, NULL AS direction, 1 AS sort_order
+                FROM payments p JOIN owners o ON o.id = p.owner_id LEFT JOIN receipts r ON r.payment_id = p.id
+                WHERE p.status = 'Active' AND p.payment_date BETWEEN ? AND ?
+                UNION ALL
+                SELECT 'income', i.id, i.income_date, i.income_code, CONCAT(i.source, IF(i.description IS NULL OR i.description = '', '', CONCAT(' - ', i.description))),
+                       i.payment_mode, i.amount, NULL, 2
+                FROM other_incomes i WHERE i.status = 'Active' AND i.income_date BETWEEN ? AND ?
+                UNION ALL
+                SELECT 'transfer', t.id, t.transfer_date, t.transfer_code, t.description, NULL, t.amount, t.direction, 3
+                FROM fund_transfers t WHERE t.status = 'Active' AND t.transfer_date BETWEEN ? AND ?
+                UNION ALL
+                SELECT 'expense', e.id, e.expense_date, e.expense_code, CONCAT(c.name, ': ', e.description), e.payment_mode, e.amount, NULL, 4
+                FROM expenses e JOIN expense_categories c ON c.id = e.category_id
+                WHERE e.status = 'Active' AND e.expense_date BETWEEN ? AND ?
+             ) x ORDER BY d, sort_order, id",
+            array($from, $to, $from, $to, $from, $to, $from, $to)
+        )->result_array();
+
+        $labels = array('payment' => 'Maintenance collection', 'income' => 'Other income', 'expense' => 'Expense');
+        $bank = $opening['bank'];
+        $cash = $opening['cash'];
+        $totals = array('bank_in' => 0, 'bank_out' => 0, 'cash_in' => 0, 'cash_out' => 0);
+        foreach ($rows as &$row)
+        {
+            $amt = to_paise_signed($row['amount']);
+            $row['bank_in'] = $row['bank_out'] = $row['cash_in'] = $row['cash_out'] = 0;
+            if ($row['kind'] === 'transfer')
+            {
+                $withdrawal = $row['direction'] === 'Bank to Cash';
+                $row['type'] = $withdrawal ? 'Withdrawal (bank to cash)' : 'Deposit (cash to bank)';
+                $row[$withdrawal ? 'bank_out' : 'cash_out'] = $amt;
+                $row[$withdrawal ? 'cash_in' : 'bank_in'] = $amt;
+            }
+            else
+            {
+                $row['type'] = $labels[$row['kind']];
+                $account = $row['mode'] === 'Cash' ? 'cash' : 'bank';
+                $row[$account.($row['kind'] === 'expense' ? '_out' : '_in')] = $amt;
+            }
+            foreach ($totals as $k => $v)
+            {
+                $totals[$k] += $row[$k];
+            }
+            $bank += $row['bank_in'] - $row['bank_out'];
+            $cash += $row['cash_in'] - $row['cash_out'];
+            $row['bank_balance'] = $bank;
+            $row['cash_balance'] = $cash;
+            $row['balance'] = $bank + $cash;
+        }
+        unset($row);
+
+        return array(
+            'from'    => $from,
+            'to'      => $to,
+            'clamped' => $clamped,
+            'opening' => $opening,
+            'rows'    => $rows,
+            'totals'  => $totals,
+            'closing' => array('bank' => $bank, 'cash' => $cash, 'total' => $bank + $cash),
+        );
+    }
+
+    /**
+     * Latest date of any money movement (so a ledger "to date" never cuts off a recorded entry).
+     */
+    public function last_entry_date(): string
+    {
+        $row = $this->db->query(
+            "SELECT GREATEST(
+                COALESCE((SELECT MAX(payment_date) FROM payments WHERE status = 'Active'), '1000-01-01'),
+                COALESCE((SELECT MAX(income_date) FROM other_incomes WHERE status = 'Active'), '1000-01-01'),
+                COALESCE((SELECT MAX(expense_date) FROM expenses WHERE status = 'Active'), '1000-01-01'),
+                COALESCE((SELECT MAX(transfer_date) FROM fund_transfers WHERE status = 'Active'), '1000-01-01')
+             ) AS d"
+        )->row();
+        return max(date('Y-m-d'), (string) $row->d);
     }
 
     /**
@@ -300,6 +435,38 @@ class Fund_model extends MY_Model
         $bank = to_paise_signed($row['bank']);
         $cash = to_paise_signed($row['cash']);
         return array('bank' => $bank, 'cash' => $cash, 'total' => $bank + $cash, 'count' => (int) $row['cnt']);
+    }
+
+    /**
+     * Net effect (paise) of Active bank / cash transfers in (after, upto]: withdrawals move money
+     * from bank to cash, deposits from cash to bank. total is always 0.
+     *
+     * @return array{bank: int, cash: int, total: int, withdrawals: int, deposits: int, count: int}
+     */
+    private function transfer_sums(?string $after, ?string $upto): array
+    {
+        $where = "status = 'Active'";
+        $params = array();
+        if ($after !== NULL)
+        {
+            $where .= ' AND transfer_date > ?';
+            $params[] = $after;
+        }
+        if ($upto !== NULL)
+        {
+            $where .= ' AND transfer_date <= ?';
+            $params[] = $upto;
+        }
+        $row = $this->db->query(
+            "SELECT COALESCE(SUM(CASE WHEN direction = 'Bank to Cash' THEN amount END), 0) AS withdrawals,
+                    COALESCE(SUM(CASE WHEN direction = 'Cash to Bank' THEN amount END), 0) AS deposits,
+                    COUNT(*) AS cnt
+             FROM fund_transfers WHERE $where",
+            $params
+        )->row_array();
+        $w = to_paise_signed($row['withdrawals']);
+        $d = to_paise_signed($row['deposits']);
+        return array('bank' => $d - $w, 'cash' => $w - $d, 'total' => 0, 'withdrawals' => $w, 'deposits' => $d, 'count' => (int) $row['cnt']);
     }
 
     /**

@@ -45,6 +45,7 @@ mysql -u root -p -t rowa_portal < database/04_verify.sql
 ```
 **Upgrading a database installed before the owner deactivate/reactivate change:** take a backup, then run `database/05_owner_lifecycle.sql` once. It only adds columns and a permission; no data is changed. New installations don't need it.
 **Upgrading a database installed before the opening-balance change:** take a backup, then run `database/06_opening_balance.sql`. It only creates the `fund_opening_balances` table and the `finance.opening_balance` permission, and is safe to run again. New installations don't need it.
+**Upgrading a database installed before the bank/cash transfer change:** after `06`, run `database/07_fund_transfers.sql`. It only creates the `fund_transfers` table and the `transfers.view` / `transfers.manage` permissions, and is safe to run again.
 On a live server, create a dedicated MySQL user with privileges on `rowa_portal` only. Don't use `root`.
 
 ### 3.2 Environment file
@@ -137,8 +138,9 @@ Do these in order after the first login:
 2. **Payments → Collect Payment**: search by name, plot, house number or mobile number. Partial payments and advance payments are allowed. Money is applied to the oldest unpaid bills first, and any extra is kept as advance credit for future bills. Each payment gets the next receipt number (`REC-2026-000001`, …).
 3. **Receipt**: download it as a PDF (A4 or half-page), print it, or send it on WhatsApp.
 4. **Maintenance → Pending Reminders**: send WhatsApp reminders to owners with unpaid bills.
-5. **Expenses / Other Income**: record spending (attach the bill) and any other income.
-6. **Reports**: Outstanding, Monthly Collection, Owner Statement (PDF and Excel) and Income & Expense.
+5. **Expenses / Other Income**: record spending (attach the bill) and any other income, such as corpus collection, hall rent or bank interest. The payment mode decides the account: **Cash** = cash in hand, any other mode = the bank account.
+6. **Finance → Bank & Cash**: record a **withdrawal** when cash is drawn from the bank and a **deposit** when cash is paid into the bank. These move money between bank and cash and never change the total, so spending the withdrawn cash is recorded once, as an expense. The page shows bank, cash and total balances, and a ledger of every money movement with running balances for any date range. A wrong entry is cancelled with a reason, never deleted.
+7. **Reports**: Outstanding, Monthly Collection, Owner Statement (PDF and Excel) and Income & Expense.
 
 **When an owner sells or leaves:** open the owner and click **Deactivate** (Admin and Super Admin only). The confirmation shows the plots and any outstanding balance. The owner moves to **Owners → Inactive Owners** and is not billed from the next generation onwards. Every bill, payment, receipt and statement is kept, and outstanding dues can still be collected. **Reactivate** brings them back. To move the plot to the new owner, use **Houses / Plots → Edit → Owner**. **Remove** appears only for an owner entered by mistake, with no bills or payments.
 
@@ -181,7 +183,7 @@ A wrong payment is **cancelled**, never deleted. Cancelling keeps the receipt nu
 | Every page except the login shows *404 Not Found* | `mod_rewrite` is off, or `RewriteBase` in `public/.htaccess` doesn't match the URL path |
 | Links point to the wrong address | `APP_URL` in `.env` must be the full URL of `public/`, ending with `/` |
 | "The action you have requested is not allowed" | The form was open longer than 2 hours (security token expired). Reload the page and submit again |
-| Logo missing from PDF receipts | Use a JPG logo, or enable the PHP `gd` extension for PNG logos |
+| Logo missing from receipts | Open `/system-check`: the *Receipt logo* line gives the reason. A PNG logo needs the PHP `gd` extension for PDFs (or use a JPG). A missing file means `public/uploads/branding/` was not copied to the server. Fix it and download the PDF again; old PDFs are regenerated automatically |
 | Locked out after wrong passwords | Wait 15 minutes, or another admin can unlock the user in **Users** |
 | Forgot-password e-mail not received | Check the `MAIL_*` settings; with `MAIL_PROTOCOL=log` the e-mail is written to `storage/logs/` |
 | Something else | Check `storage/logs/log-YYYY-MM-DD.log` and `/system-check` |

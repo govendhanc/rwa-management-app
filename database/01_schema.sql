@@ -27,6 +27,7 @@ DROP TABLE IF EXISTS import_batches;
 DROP TABLE IF EXISTS audit_logs;
 DROP TABLE IF EXISTS notifications;
 DROP TABLE IF EXISTS whatsapp_messages;
+DROP TABLE IF EXISTS fund_transfers;
 DROP TABLE IF EXISTS fund_opening_balances;
 DROP TABLE IF EXISTS other_incomes;
 DROP TABLE IF EXISTS expenses;
@@ -654,6 +655,34 @@ CREATE TABLE fund_opening_balances (
     CONSTRAINT fk_fund_opening_corrects FOREIGN KEY (corrects_id) REFERENCES fund_opening_balances (id),
     CONSTRAINT fk_fund_opening_superseded_by FOREIGN KEY (superseded_by) REFERENCES users (id) ON DELETE SET NULL,
     CONSTRAINT fk_fund_opening_created_by FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Money moved between the association's bank account and cash in hand. Changes the bank and cash
+-- balances but never the total: 'Bank to Cash' = withdrawal, 'Cash to Bank' = deposit. Spending is
+-- an expense, so a withdrawal and the expense paid from it are never counted twice. Never deleted.
+CREATE TABLE fund_transfers (
+    id              INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    transfer_code   VARCHAR(20)   NOT NULL,
+    transfer_date   DATE          NOT NULL,
+    direction       ENUM('Bank to Cash','Cash to Bank') NOT NULL,
+    amount          DECIMAL(12,2) NOT NULL,
+    description     VARCHAR(255)  NOT NULL,
+    reference       VARCHAR(100)  NULL,
+    remarks         VARCHAR(500)  NULL,
+    status          ENUM('Active','Cancelled') NOT NULL DEFAULT 'Active',
+    cancel_reason   VARCHAR(255)  NULL,
+    cancelled_by    INT UNSIGNED  NULL,
+    cancelled_at    DATETIME      NULL,
+    request_token   CHAR(32)      NULL,
+    created_by      INT UNSIGNED  NULL,
+    created_at      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_fund_transfers_code (transfer_code),
+    UNIQUE KEY uq_fund_transfers_request (request_token),
+    KEY ix_fund_transfers_status_date (status, transfer_date),
+    CONSTRAINT chk_fund_transfers_amount CHECK (amount > 0),
+    CONSTRAINT fk_fund_transfers_cancelled_by FOREIGN KEY (cancelled_by) REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT fk_fund_transfers_created_by FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================================================

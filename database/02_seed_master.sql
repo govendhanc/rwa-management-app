@@ -64,6 +64,8 @@ INSERT INTO permissions (perm_key, module, description) VALUES
 ('reports.view',          'reports',     'Outstanding, monthly collection and owner statement reports'),
 ('reports.financial',     'reports',     'Income & expense reports'),
 ('finance.opening_balance','finance',     'Record and correct the association opening balance (bank + cash)'),
+('transfers.view',        'finance',     'View bank and cash balances and the fund ledger'),
+('transfers.manage',      'finance',     'Record and cancel bank / cash withdrawals and deposits'),
 ('users.manage',          'users',       'Manage users and roles'),
 ('settings.manage',       'settings',    'Association and system settings'),
 ('audit.view',            'audit',       'View audit logs'),
@@ -86,7 +88,8 @@ SELECT 2, id FROM permissions WHERE perm_key IN (
     'receipts.view', 'receipts.download', 'receipts.generate',
     'whatsapp.send', 'whatsapp.templates',
     'expenses.view', 'incomes.view',
-    'reports.view', 'reports.financial', 'finance.opening_balance'
+    'reports.view', 'reports.financial', 'finance.opening_balance',
+    'transfers.view'
 );
 
 INSERT INTO role_permissions (role_id, permission_id)
@@ -98,7 +101,8 @@ SELECT 3, id FROM permissions WHERE perm_key IN (
     'whatsapp.send',
     'expenses.view', 'expenses.create', 'expenses.edit', 'expenses.cancel',
     'incomes.view', 'incomes.create', 'incomes.edit', 'incomes.cancel',
-    'reports.view', 'reports.financial'
+    'reports.view', 'reports.financial',
+    'transfers.view', 'transfers.manage'
 );
 
 INSERT INTO role_permissions (role_id, permission_id)
@@ -107,7 +111,8 @@ SELECT 4, id FROM permissions WHERE perm_key IN (
     'owners.view', 'houses.view', 'tenants.view', 'maintenance.view', 'payments.view',
     'receipts.view', 'receipts.download',
     'expenses.view', 'incomes.view',
-    'reports.view', 'reports.financial'
+    'reports.view', 'reports.financial',
+    'transfers.view'
 );
 
 -- -------------------------------------------------------------------------------------

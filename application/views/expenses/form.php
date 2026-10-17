@@ -68,7 +68,7 @@ $val = function (string $k) use ($expense) { return set_value($k, (string) $expe
             </div>
         </div>
         <div class="d-flex gap-2 mt-4">
-            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk me-1"></i> Save Expense</button>
+            <button type="submit" class="btn btn-primary" data-confirm="Save this expense? It reduces the bank or cash balance according to the payment mode." data-confirm-button="Save expense" data-confirm-variant="primary"><i class="fa-solid fa-floppy-disk me-1"></i> Save Expense</button>
             <a href="<?= e(site_url('expenses')) ?>" class="btn btn-light">Cancel</a>
         </div>
         <?= form_close() ?>

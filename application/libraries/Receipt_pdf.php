@@ -34,7 +34,7 @@ class Receipt_pdf
             'lines'   => $this->CI->receipt_model->lines((int) $receipt['payment_id']),
             'format'  => isset(self::FORMATS[$format]) ? $format : 'a4',
             'for_pdf' => $for_pdf,
-            'logo'    => $this->CI->pdf_renderer->logo_data_uri(),
+            'logo'    => $this->CI->pdf_renderer->logo_data_uri($for_pdf),
         ), TRUE);
     }
 
@@ -49,11 +49,13 @@ class Receipt_pdf
         $year = substr((string) $receipt['receipt_date'], 0, 4);
         // The fingerprint ties the cached file to this exact receipt row (so a file left over from a
         // restored/reset database is never served), and to the receipt template and association
-        // details (so a new layout, address or logo produces a fresh PDF).
+        // details (so a new layout, address or logo produces a fresh PDF). The logo part is the image
+        // actually embedded, so a PDF made while the logo was unavailable is not served once it is fixed.
         $fingerprint = substr(hash('sha256', implode('|', array(
             $receipt['id'], $receipt['receipt_no'], $receipt['created_at'], $receipt['amount_received'], $receipt['status'],
             (string) @filemtime(VIEWPATH.'receipts'.DIRECTORY_SEPARATOR.'document.php'),
-            association('updated_at'), association('logo_path'),
+            (string) @filemtime(VIEWPATH.'documents'.DIRECTORY_SEPARATOR.'_letterhead.php'),
+            association('updated_at'), association('logo_path'), md5($this->CI->pdf_renderer->logo_data_uri(TRUE)),
         ))), 0, 10);
         $relative = 'receipts/'.$year.'/'.preg_replace('/[^A-Za-z0-9_-]/', '_', (string) $receipt['receipt_no']).'-'.$fingerprint.'-'.$format.'.pdf';
         $absolute = STORAGEPATH.str_replace('/', DIRECTORY_SEPARATOR, $relative);

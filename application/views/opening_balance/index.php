@@ -130,6 +130,8 @@ $fields = function (array $v) use ($rs) { ob_start(); ?>
                             <td class="text-end amount"><?= e($rs($p['collections']['bank'])) ?></td><td class="text-end amount"><?= e($rs($p['collections']['cash'])) ?></td><td class="text-end amount"><?= e($rs($p['collections']['total'])) ?></td></tr>
                         <tr><td>+ Other income</td>
                             <td class="text-end amount"><?= e($rs($p['other_income']['bank'])) ?></td><td class="text-end amount"><?= e($rs($p['other_income']['cash'])) ?></td><td class="text-end amount"><?= e($rs($p['other_income']['total'])) ?></td></tr>
+                        <tr><td>&plusmn; Withdrawals / deposits (bank &harr; cash)</td>
+                            <td class="text-end amount"><?= e($rs($p['transfers']['bank'])) ?></td><td class="text-end amount"><?= e($rs($p['transfers']['cash'])) ?></td><td class="text-end amount"><?= e($rs($p['transfers']['total'])) ?></td></tr>
                         <tr><td>&minus; Expenses</td>
                             <td class="text-end amount"><?= e($rs($p['expenses']['bank'])) ?></td><td class="text-end amount"><?= e($rs($p['expenses']['cash'])) ?></td><td class="text-end amount"><?= e($rs($p['expenses']['total'])) ?></td></tr>
                         <tr class="fw-bold border-top border-dark table-light"><td>Current available balance</td>

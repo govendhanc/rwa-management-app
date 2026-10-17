@@ -87,13 +87,15 @@ $tile = function (string $label, string $value, string $icon, string $tone, stri
     <div class="col-12 col-sm-6 col-xl-3"><?= $tile('Total expenses', money($finance['total_expenses']), 'fa-solid fa-money-bill-wave', 'warning', 'Since '.fmt_date($fund['since'])) ?></div>
 </div>
 <div class="row g-3 mb-4">
-    <div class="col-12 col-lg-4"><?= $tile('Current available balance', money($finance['current_balance']), 'fa-solid fa-scale-balanced', 'primary', 'Bank '.$rs($fund['closing']['bank']).' · Cash '.$rs($fund['closing']['cash'])) ?></div>
-    <div class="col-12 col-sm-6 col-lg-4"><?= $tile('Total outstanding', money($finance['total_outstanding']), 'fa-solid fa-triangle-exclamation', 'danger', 'Dues - not part of available funds') ?></div>
-    <div class="col-12 col-sm-6 col-lg-4"><?= $tile('Advance credit', money($finance['advance_credit']), 'fa-solid fa-forward', 'secondary', 'Held for future months') ?></div>
+    <div class="col-12 col-sm-6 col-xl-3"><?= $tile('Bank balance', $rs($fund['closing']['bank']), 'fa-solid fa-building-columns', 'primary', 'All non-cash payment modes') ?></div>
+    <div class="col-12 col-sm-6 col-xl-3"><?= $tile('Cash balance', $rs($fund['closing']['cash']), 'fa-solid fa-money-bills', 'success', 'Cash in hand') ?></div>
+    <div class="col-12 col-sm-6 col-xl-3"><?= $tile('Current available balance', money($finance['current_balance']), 'fa-solid fa-scale-balanced', 'primary', 'Bank + cash') ?></div>
+    <div class="col-12 col-sm-6 col-xl-3"><?= $tile('Total outstanding', money($finance['total_outstanding']), 'fa-solid fa-triangle-exclamation', 'danger', 'Dues - not part of available funds') ?></div>
+    <div class="col-12 col-sm-6 col-xl-3"><?= $tile('Advance credit', money($finance['advance_credit']), 'fa-solid fa-forward', 'secondary', 'Held for future months') ?></div>
     <div class="col-12">
         <div class="card">
             <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-                <span>Maintenance collections by month</span>
+                <span>Maintenance collections by month<?php if (can('transfers.view')): ?> &middot; <a href="<?= e(site_url('funds')) ?>" class="small">Bank &amp; Cash ledger</a><?php endif; ?></span>
                 <span class="small text-muted">Opening <?= e($rs($fund['opening']['total'])) ?> + collections <?= e(money($finance['total_collection'])) ?> + other income <?= e(money($finance['other_income'])) ?> &minus; expenses <?= e(money($finance['total_expenses'])) ?> = <strong><?= e(money($finance['current_balance'])) ?></strong></span>
             </div>
             <div class="table-responsive">

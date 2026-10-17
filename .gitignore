@@ -13,6 +13,8 @@ public/uploads/branding/*
 !storage/**/.htaccess
 !storage/imports/errors/
 !public/uploads/branding/index.html
+# The association logo is part of every receipt - deploy it with the code
+!public/uploads/branding/logo.jpg
 
 # OS / editor
 .DS_Store

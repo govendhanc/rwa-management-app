@@ -146,7 +146,7 @@ class Syscheck extends MY_Controller
             "SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema = ? AND table_type = 'BASE TABLE'",
             array($db_name)
         )->row()->c;
-        $checks[] = $this->result('Tables in '.$db_name, $tables >= 31 ? 'ok' : 'error', $tables.' of 31 found'.($tables < 31 ? ' - import database/01_schema.sql' : ''));
+        $checks[] = $this->result('Tables in '.$db_name, $tables >= 32 ? 'ok' : 'error', $tables.' of 32 found'.($tables < 32 ? ' - import database/01_schema.sql' : ''));
 
         $views = (int) $this->db->query(
             'SELECT COUNT(*) AS c FROM information_schema.views WHERE table_schema = ?',
@@ -154,7 +154,7 @@ class Syscheck extends MY_Controller
         )->row()->c;
         $checks[] = $this->result('Reporting views', $views >= 2 ? 'ok' : 'error', $views.' of 2 found');
 
-        if ($tables >= 31)
+        if ($tables >= 32)
         {
             $roles = $this->db->count_all('roles');
             $perms = $this->db->count_all('permissions');
@@ -163,6 +163,15 @@ class Syscheck extends MY_Controller
 
             $settings = $this->db->count_all('association_settings');
             $checks[] = $this->result('Association settings', $settings === 1 ? 'ok' : 'error', $settings === 1 ? association('association_name') : 'Missing - import database/02_seed_master.sql');
+            if ($settings === 1)
+            {
+                // Receipts and statements embed this logo (top-left and centre watermark)
+                $this->load->library('pdf_renderer');
+                $logo = $this->pdf_renderer->logo_status();
+                $checks[] = $this->result('Receipt logo', $logo['problem'] === NULL ? 'ok' : ($logo['mime'] !== NULL ? 'warning' : 'error'),
+                    $logo['problem'] === NULL ? 'public/'.association('logo_path').' - shown on screen, in print and in PDFs'
+                        : ($logo['mime'] !== NULL ? 'Shown on screen and in print, not in PDFs: ' : 'Not shown on receipts: ').$logo['problem']);
+            }
 
             $this->load->model('rate_model');
             foreach ($this->rate_model->rates_for_month() as $category => $rate)
